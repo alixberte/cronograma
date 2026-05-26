@@ -1291,6 +1291,7 @@ function renderRevisoes(){
 // LAYER 14 — CRONOGRAMA DERIVADO
 // ═══════════════════════════════════════════════════════
 function renderCron(){
+  const allTopics = computeAll();
   const mes=(document.getElementById('cr-mes')?.value||'').toLowerCase();
   const all=computeAll();
   const totalT=WEEKS.reduce((t,w)=>t+w.tasks.length,0);
@@ -1337,6 +1338,27 @@ function renderCron(){
           </div>
           <span class="tp ${TC[t.type]||'tp-q'}" style="flex-shrink:0">${TL[t.type]||t.type}</span>
         </div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:5px 0">Nenhuma tarefa.</div>'}
+      ${(()=>{
+        // Compute due items for this week (Q2/Q3 blocks due in this week range)
+        const dueItems = allTopics.filter(t => {
+          if(!t.pendingBlocks.length) return false;
+          return t.pendingBlocks.some(b => b.due >= w.wkISO && b.due <= w.wkEndISO);
+        });
+        if(!dueItems.length) return '';
+        return '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--b2)">'
+          + '<div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">📅 Vencimentos desta semana</div>'
+          + dueItems.map(t => {
+              const blk = t.pendingBlocks.find(b => b.due >= w.wkISO && b.due <= w.wkEndISO);
+              const pctStr = t.pct !== null ? ' · acerto Q1: '+t.pct+'%' : '';
+              return '<div style="display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--b)">'
+                + '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:'+(blk.block==='Q2'?'#bfdbfe':'#fde68a')+';color:'+(blk.block==='Q2'?'#1e40af':'#92400e')+'">'+(blk.block)+'</span>'
+                + '<span style="flex:1;font-size:11px">'+t.n+'</span>'
+                + '<span style="font-size:9px;color:var(--t3)">'+t.disc+pctStr+'</span>'
+                + '<span style="font-size:9px;color:var(--t3);margin-left:4px">vence '+fmtD(blk.due)+'</span>'
+                + '</div>';
+            }).join('')
+          + '</div>';
+      })()}
       </div>`;
     ct.appendChild(el);
     if(w.isCurrent){const a=document.getElementById(`wa-${wi}`);if(a)a.style.transform='rotate(90deg)';}
