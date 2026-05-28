@@ -1324,7 +1324,7 @@ function renderSemana(){
   document.getElementById('sq-al').innerHTML = PLANILHA.map(t=>`<option value="${t.n}">`).join('');
 }
 
-function toggleTaskfunction toggleTask(wkISO,idx,cb){
+function toggleTask(wkISO,idx,cb){
   if(!STATE.wkChecks[wkISO]) STATE.wkChecks[wkISO]={};
   STATE.wkChecks[wkISO][idx] = cb.checked;
   persistState();
