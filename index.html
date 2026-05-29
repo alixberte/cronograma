@@ -336,10 +336,36 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 <!-- SEMANA -->
 <div class="page" id="page-semana">
   <div id="sem-hero" class="mb14"></div>
+  <!-- Execution metrics -->
+  <div id="sem-stats" class="mb14" style="display:none">
+    <div class="g4" style="gap:9px">
+      <div class="mc">
+        <div class="ml">Cumprimento</div>
+        <div class="mv" id="sem-pct-v">—</div>
+        <div class="ms" id="sem-pct-s">tarefas</div>
+      </div>
+      <div class="mc">
+        <div class="ml">Questões</div>
+        <div class="mv" id="sem-q-v">—</div>
+        <div class="ms" id="sem-q-s">planejadas vs feitas</div>
+      </div>
+      <div class="mc">
+        <div class="ml">Sessões realizadas</div>
+        <div class="mv" id="sem-sess-v">0</div>
+        <div class="ms">nesta semana</div>
+      </div>
+      <div class="mc">
+        <div class="ml">Horas estimadas</div>
+        <div class="mv" id="sem-h-v">—</div>
+        <div class="ms" id="sem-h-s">realizadas</div>
+      </div>
+    </div>
+  </div>
   <div class="g2" style="gap:12px">
     <div>
       <div class="rb mb8"><span style="font-size:12px;font-weight:600">Tarefas do scheduler</span><span class="chip cdk" id="sem-chip">—</span></div>
       <div id="sem-tasks"></div>
+      <div id="sem-due" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--b2);display:none"></div>
     </div>
     <div>
       <div class="reg-panel">
@@ -599,28 +625,23 @@ const PLANILHA=[{"id":"CLM::Insuficiência cardíaca","disc":"CLM","topico":"CAR
 const DISC_WEIGHTS={"by_disc":{"PREVENTIVA":{"amrigs":160,"amp":296,"total":456},"GO":{"amrigs":168,"amp":123,"total":291},"CLC":{"amrigs":196,"amp":195,"total":391},"PED":{"amrigs":169,"amp":165,"total":334},"CLM":{"amrigs":183,"amp":201,"total":384}},"by_disc_pct":{"PREVENTIVA":24.57,"GO":15.68,"CLC":21.07,"PED":18.0,"CLM":20.69},"by_esp":{"Medicina de Família e Comunidade":{"disc":"PREVENTIVA","amrigs":33,"amp":49,"total":82},"Saúde Pública":{"disc":"PREVENTIVA","amrigs":0,"amp":136,"total":136},"Política e Gestão":{"disc":"PREVENTIVA","amrigs":37,"amp":46,"total":83},"Ginecologia Geral":{"disc":"GO","amrigs":30,"amp":33,"total":63},"Cirurgia Geral":{"disc":"CLC","amrigs":99,"amp":90,"total":189},"Endoscopia":{"disc":"CLC","amrigs":8,"amp":13,"total":21},"Epidemiologia":{"disc":"PREVENTIVA","amrigs":54,"amp":54,"total":108},"Saúde do Trabalhador e Medicina Legal":{"disc":"PREVENTIVA","amrigs":0,"amp":11,"total":11},"Cirurgia Plástica":{"disc":"CLC","amrigs":12,"amp":21,"total":33},"Neuro Pediátrico":{"disc":"PED","amrigs":24,"amp":18,"total":42},"Endocrinologia":{"disc":"CLM","amrigs":21,"amp":33,"total":54},"Endócrino Pediátrico":{"disc":"PED","amrigs":5,"amp":4,"total":9},"Infectologia Pediátrica":{"disc":"PED","amrigs":33,"amp":31,"total":64},"Gine Endócrina":{"disc":"GO","amrigs":39,"amp":30,"total":69},"Intensiva Pediátrica":{"disc":"PED","amrigs":12,"amp":13,"total":25},"Nefro Pediátrico":{"disc":"PED","amrigs":0,"amp":7,"total":7},"Puericultura":{"disc":"PED","amrigs":39,"amp":13,"total":52},"CAD":{"disc":"CLC","amrigs":48,"amp":34,"total":82},"Cardiologia":{"disc":"CLM","amrigs":16,"amp":43,"total":59},"Infectologia":{"disc":"CLM","amrigs":20,"amp":23,"total":43},"Nefrologia":{"disc":"CLM","amrigs":31,"amp":13,"total":44},"Oncologia":{"disc":"CLM","amrigs":1,"amp":11,"total":12},"Psiquiatria":{"disc":"CLM","amrigs":15,"amp":2,"total":17},"Reumatologia":{"disc":"CLM","amrigs":13,"amp":10,"total":23},"Cirurgia Pediátrica":{"disc":"PED","amrigs":3,"amp":22,"total":25},"Emergências Pediátricas":{"disc":"PED","amrigs":16,"amp":12,"total":28},"Medicina Legal":{"disc":"PREVENTIVA","amrigs":5,"amp":0,"total":5},"Cirurgia Vascular":{"disc":"CLC","amrigs":10,"amp":13,"total":23},"Emergências Clínicas":{"disc":"CLM","amrigs":8,"amp":6,"total":14},"Neurologia":{"disc":"CLM","amrigs":13,"amp":9,"total":22},"Assistência ao Parto":{"disc":"GO","amrigs":10,"amp":11,"total":21},"Emergências Obstétricas":{"disc":"GO","amrigs":19,"amp":11,"total":30},"Imuno Pediátrico":{"disc":"PED","amrigs":0,"amp":8,"total":8},"Neonatologia":{"disc":"PED","amrigs":21,"amp":6,"total":27},"Oftalmo Pediátrico":{"disc":"PED","amrigs":0,"amp":4,"total":4},"Cirurgia Torácica":{"disc":"CLC","amrigs":2,"amp":8,"total":10},"Geriatria":{"disc":"CLM","amrigs":8,"amp":0,"total":8},"HAS Primária":{"disc":"CLM","amrigs":0,"amp":7,"total":7},"Pneumologia":{"disc":"CLM","amrigs":10,"amp":14,"total":24},"UTI":{"disc":"CLM","amrigs":3,"amp":3,"total":6},"Oncoginecologia":{"disc":"GO","amrigs":17,"amp":12,"total":29},"Uroginecologia":{"disc":"GO","amrigs":4,"amp":5,"total":9},"Assistência ao Pré-Natal":{"disc":"GO","amrigs":12,"amp":8,"total":20},"Obstetrícia":{"disc":"GO","amrigs":3,"amp":0,"total":3},"Dermato Pediátrico":{"disc":"PED","amrigs":4,"amp":5,"total":9},"Saúde Mental":{"disc":"PREVENTIVA","amrigs":9,"amp":0,"total":9},"Vigilância em Saúde":{"disc":"PREVENTIVA","amrigs":8,"amp":0,"total":8},"Cirurgia Cardíaca":{"disc":"CLC","amrigs":2,"amp":3,"total":5},"Urologia":{"disc":"CLC","amrigs":6,"amp":8,"total":14},"Clínica Médica Geral":{"disc":"CLM","amrigs":3,"amp":1,"total":4},"Gastroenterologia":{"disc":"CLM","amrigs":9,"amp":15,"total":24},"Hematologia":{"disc":"CLM","amrigs":10,"amp":7,"total":17},"Ginecologia":{"disc":"GO","amrigs":2,"amp":0,"total":2},"Mastologia":{"disc":"GO","amrigs":4,"amp":0,"total":4},"Gestação de Alto Risco":{"disc":"GO","amrigs":13,"amp":0,"total":13},"Medicina Fetal":{"disc":"GO","amrigs":7,"amp":7,"total":14},"Puerpério":{"disc":"GO","amrigs":8,"amp":6,"total":14},"Cardio Pediátrico":{"disc":"PED","amrigs":0,"amp":4,"total":4},"Gastro Pediátrico":{"disc":"PED","amrigs":5,"amp":6,"total":11},"Hemato Pediátrico":{"disc":"PED","amrigs":0,"amp":3,"total":3},"Ortopedia Pediátrica":{"disc":"PED","amrigs":0,"amp":3,"total":3},"Pneumo Pediátrico":{"disc":"PED","amrigs":0,"amp":5,"total":5},"Reumato Pediátrico":{"disc":"PED","amrigs":0,"amp":3,"total":3},"Indicadores de Saúde":{"disc":"PREVENTIVA","amrigs":10,"amp":0,"total":10},"Cirurgia Cabeça e Pescoço":{"disc":"CLC","amrigs":2,"amp":0,"total":2},"Litiáse (CIR)":{"disc":"CLC","amrigs":2,"amp":0,"total":2},"Ortopedia":{"disc":"CLC","amrigs":2,"amp":1,"total":3},"Dermatologia":{"disc":"CLM","amrigs":0,"amp":1,"total":1},"Imunologia":{"disc":"CLM","amrigs":2,"amp":3,"total":5},"Genética Pediátrica":{"disc":"PED","amrigs":2,"amp":0,"total":2},"Onco Pediátrico":{"disc":"PED","amrigs":0,"amp":2,"total":2},"Outros Pediátrico":{"disc":"PED","amrigs":8,"amp":0,"total":8},"Concepções de Saúde":{"disc":"PREVENTIVA","amrigs":2,"amp":0,"total":2},"Medicina do Trabalho":{"disc":"PREVENTIVA","amrigs":2,"amp":0,"total":2}},"total":1856};
 (function(){
   try{
-    // Always ensure sync URL is set
+    const SYNC_URL='https://script.google.com/macros/s/AKfycbwRKawUsQBKnAA57HHdfbBm2DfjlytX-kA2ZU3GNoUNQsXFrcoMCA5YrYAXHgnvY318bg/exec';
     if(!localStorage.getItem('qg_sync_url'))
-      localStorage.setItem('qg_sync_url', 'https://script.google.com/macros/s/AKfycbwRKawUsQBKnAA57HHdfbBm2DfjlytX-kA2ZU3GNoUNQsXFrcoMCA5YrYAXHgnvY318bg/exec');
-
-    // Load embedded state if:
-    // 1. No data at all, OR
-    // 2. Existing data has wrong version, OR
-    // 3. Existing data has 0 sessions (empty/broken state)
-    const existing = localStorage.getItem('qg_v4');
-    let shouldLoad = !existing;
-    if(!shouldLoad){
+      localStorage.setItem('qg_sync_url', SYNC_URL);
+    // Load embedded state if localStorage is empty, wrong version, or has 0 sessions
+    const raw = localStorage.getItem('qg_v5') || localStorage.getItem('qg_v4');
+    let needLoad = !raw;
+    if(!needLoad){
       try{
-        const parsed = JSON.parse(existing);
-        if(parsed.v !== 4) shouldLoad = true;
-        if(!parsed.sessions || parsed.sessions.length === 0) shouldLoad = true;
-      }catch(e){ shouldLoad = true; }
+        const p = JSON.parse(raw);
+        if(![4,5].includes(p.v) || !p.sessions || p.sessions.length === 0) needLoad = true;
+        // Ensure wkSnapshot field exists
+        if(!p.weekPlans) { p.weekPlans = {}; } if(!p.weekExecution) { p.weekExecution = {}; }
+      }catch(e){ needLoad = true; }
     }
-    if(shouldLoad){
-      localStorage.setItem('qg_v4', JSON.stringify({"sessions":[{"id":"u1779810041958","data":"2026-05-25","n":"Doenças Hipertensivas","disc":"GO","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810610506","data":"2026-05-25","n":"DIP","disc":"GO","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810118570","data":"2026-05-26","n":"Doenças Hipertensivas","disc":"GO","tipo":"Q1_DONE","q":15,"a":9,"obs":"Aprofundar"},{"id":"u1779810392088","data":"2026-05-26","n":"Osteoporose","disc":"CLM","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810503715","data":"2026-05-26","n":"Osteoporose","disc":"CLM","tipo":"CONTENT_SEEN","q":15,"a":9,"obs":"Fármacos, sei pouco"},{"id":"u1779810534542","data":"2026-05-26","n":"Abdome agudo perfurativo","disc":"CLC","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810577398","data":"2026-05-26","n":"Abdome agudo hemorragico","disc":"CLC","tipo":"Q1_DONE","q":7,"a":5,"obs":""},{"id":"u1779810670990","data":"2026-05-26","n":"DIP","disc":"GO","tipo":"Q1_DONE","q":13,"a":9,"obs":""},{"id":"u1779810704729","data":"2026-05-26","n":"Bronquiolite","disc":"PED","tipo":"Q1_DONE","q":8,"a":8,"obs":""},{"id":"u1779810721204","data":"2026-05-26","n":"Coqueluche","disc":"PED","tipo":"Q1_DONE","q":7,"a":6,"obs":""},{"id":"u1779810758291","data":"2026-05-26","n":"Osteoporose","disc":"CLM","tipo":"Q1_DONE","q":15,"a":9,"obs":""},{"id":"u1779810810765","data":"2026-05-26","n":"Disturbios puberais","disc":"PED","tipo":"SPACED_REV","q":15,"a":11,"obs":""},{"id":"u1779834946330","data":"2026-05-26","n":"Imagenologia e Neoplasia de Mama","disc":"GO","tipo":"SPACED_REV","q":14,"a":13,"obs":""},{"id":"u1779828994375","data":"2026-05-26","n":"ATLS","disc":"CLC","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810639006","data":"2026-05-27","n":"DIP","disc":"GO","tipo":"CONTENT_SEEN","q":13,"a":9,"obs":""},{"id":"u1779983593142","data":"2026-05-28","n":"Infecções Congênitas","disc":"PED","tipo":"SPACED_REV","q":15,"a":10,"obs":""},{"id":"u1779997834827","data":"2026-05-28","n":"Complicações cx e pós op","disc":"CLC","tipo":"Q3_DONE","q":15,"a":13,"obs":""}],"simulados":[],"wkChecks":{"2026-05-25":{"0":false}},"heatmap":{"2026-05-25":2,"2026-05-26":12,"2026-05-27":1,"2026-05-28":4},"v":4,"wkSnapshot":{}}));
-    }
+    if(needLoad) localStorage.setItem('qg_v4', JSON.stringify({"sessions":[{"id":"u1779810041958","data":"2026-05-25","n":"Doenças Hipertensivas","disc":"GO","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810610506","data":"2026-05-25","n":"DIP","disc":"GO","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810118570","data":"2026-05-26","n":"Doenças Hipertensivas","disc":"GO","tipo":"Q1_DONE","q":15,"a":9,"obs":"Aprofundar"},{"id":"u1779810392088","data":"2026-05-26","n":"Osteoporose","disc":"CLM","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810503715","data":"2026-05-26","n":"Osteoporose","disc":"CLM","tipo":"CONTENT_SEEN","q":15,"a":9,"obs":"Fármacos, sei pouco"},{"id":"u1779810534542","data":"2026-05-26","n":"Abdome agudo perfurativo","disc":"CLC","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810577398","data":"2026-05-26","n":"Abdome agudo hemorragico","disc":"CLC","tipo":"Q1_DONE","q":7,"a":5,"obs":""},{"id":"u1779810670990","data":"2026-05-26","n":"DIP","disc":"GO","tipo":"Q1_DONE","q":13,"a":9,"obs":""},{"id":"u1779810704729","data":"2026-05-26","n":"Bronquiolite","disc":"PED","tipo":"Q1_DONE","q":8,"a":8,"obs":""},{"id":"u1779810721204","data":"2026-05-26","n":"Coqueluche","disc":"PED","tipo":"Q1_DONE","q":7,"a":6,"obs":""},{"id":"u1779810758291","data":"2026-05-26","n":"Osteoporose","disc":"CLM","tipo":"Q1_DONE","q":15,"a":9,"obs":""},{"id":"u1779810810765","data":"2026-05-26","n":"Disturbios puberais","disc":"PED","tipo":"SPACED_REV","q":15,"a":11,"obs":""},{"id":"u1779834946330","data":"2026-05-26","n":"Imagenologia e Neoplasia de Mama","disc":"GO","tipo":"SPACED_REV","q":14,"a":13,"obs":""},{"id":"u1779828994375","data":"2026-05-26","n":"ATLS","disc":"CLC","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810639006","data":"2026-05-27","n":"DIP","disc":"GO","tipo":"CONTENT_SEEN","q":13,"a":9,"obs":""},{"id":"u1779983593142","data":"2026-05-28","n":"Infecções Congênitas","disc":"PED","tipo":"SPACED_REV","q":15,"a":10,"obs":""},{"id":"u1779997834827","data":"2026-05-28","n":"Complicações cx e pós op","disc":"CLC","tipo":"Q3_DONE","q":15,"a":13,"obs":""}],"simulados":[],"wkChecks":{"2026-05-25":{"0":false}},"heatmap":{"2026-05-25":2,"2026-05-26":12,"2026-05-27":1,"2026-05-28":4},"v":4,"wkSnapshot":{}}));
   }catch(e){}
-})();;
+})();
 
 // ═══════════════════════════════════════════════════════
 // SR CONFIG — Configurable spaced repetition intervals
@@ -662,7 +683,7 @@ function srUpdatePreview(){
     <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--b)">
       <span style="font-size:11px;min-width:70px">Acerto ${label}</span>
       <div style="flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden">
-        <div style="width:${Math.min(100,Math.round(days/90*100))}%;height:100%;background:${col};border-radius:3px;transition:width .3s"></div>
+        <div style="width:${Math.min(100,safe_pct(days,90))}%;height:100%;background:${col};border-radius:3px;transition:width .3s"></div>
       </div>
       <span style="font-size:13px;font-weight:600;min-width:55px;text-align:right;color:${col}">${days} dias</span>
     </div>`).join('');
@@ -702,6 +723,10 @@ const STAGE_CLASS = {
   REV_LATE:'s-warn',REV_CRITICAL:'s-crit',MASTERED:'s-ok'
 };
 
+// Safe percentage — never returns NaN or Infinity
+function safe_pct(a, q){ return (q && q > 0) ? Math.round((a||0)/q*100) : 0; }
+function safe_div(a, b, fallback){ try{ return (b && b!==0) ? a/b : fallback||0; }catch(e){ return fallback||0; } }
+
 function addDays(iso,n){
   if(!iso)return null;
   const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);
@@ -720,12 +745,84 @@ function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
 // ═══════════════════════════════════════════════════════
 // LAYER 3 — PERSISTENCE
 // ═══════════════════════════════════════════════════════
-let STATE = {sessions:[],simulados:[],wkChecks:{},wkSnapshot:{},heatmap:{},v:4};
+// STATE schema v5
+// weekPlans[wkISO]       = [{uid,type,topicId,n,label,explain,min}]  — frozen plan, never changes
+// weekExecution[wkISO]   = {uid: {completed:bool, completed_at:ts}}  — execution record
+let STATE = {sessions:[],simulados:[],weekPlans:{},weekExecution:{},heatmap:{},v:5};
+
 function loadState(){
-  try{const r=localStorage.getItem('qg_v4');if(r){const p=JSON.parse(r);if(p.v===4)STATE=p;}}catch(e){}
+  try{
+    const r = localStorage.getItem('qg_v5') || localStorage.getItem('qg_v4');
+    if(r){
+      const p = JSON.parse(r);
+      if(p.v === 5){
+        // Native v5 load
+        STATE = p;
+      } else if(p.v === 4){
+        // Migrate v4 → v5
+        STATE = {
+          sessions:     p.sessions     || [],
+          simulados:    p.simulados    || [],
+          weekPlans:    p.wkSnapshot   || {},
+          weekExecution:{},
+          heatmap:      p.heatmap      || {},
+          v: 5
+        };
+        // Migrate wkChecks → weekExecution
+        Object.keys(p.wkChecks||{}).forEach(wkISO => {
+          STATE.weekExecution[wkISO] = {};
+          Object.keys(p.wkChecks[wkISO]||{}).forEach(uid => {
+            const val = p.wkChecks[wkISO][uid];
+            STATE.weekExecution[wkISO][uid] = {
+              completed: !!val,
+              completed_at: val ? Date.now() : null
+            };
+          });
+        });
+        // Migrate wkSnapshot tasks: ensure uid exists
+        Object.keys(STATE.weekPlans).forEach(wkISO => {
+          const tasks = STATE.weekPlans[wkISO];
+          if(Array.isArray(tasks)){
+            tasks.forEach((t,i) => {
+              if(!t.uid) t.uid = wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i);
+            });
+          }
+        });
+        persistState(); // save migrated state
+      }
+    }
+    // Ensure all fields exist
+    if(!STATE.weekPlans)     STATE.weekPlans     = {};
+    if(!STATE.weekExecution) STATE.weekExecution = {};
+    if(!STATE.heatmap)       STATE.heatmap       = {};
+    if(!STATE.sessions)      STATE.sessions      = [];
+    if(!STATE.simulados)     STATE.simulados     = [];
+  }catch(e){ console.warn('loadState:', e); }
 }
+
+
+// Migrate legacy wkChecks from numeric keys to uid keys
+// (runs once silently — old data still works via fallback in toggleTask)
+function migrateState(){
+  // Ensure task UIDs in weekPlans
+  if(STATE.weekPlans){
+    var dirty=false;
+    Object.keys(STATE.weekPlans).forEach(function(wkISO){
+      var tasks=STATE.weekPlans[wkISO];
+      if(!Array.isArray(tasks)) return;
+      tasks.forEach(function(t,i){
+        if(!t.uid){ t.uid=wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i); dirty=true; }
+      });
+    });
+    if(dirty) persistState();
+  }
+}
+
 function persistState(){
-  try{localStorage.setItem('qg_v4',JSON.stringify(STATE));}catch(e){}
+  try{
+    localStorage.setItem('qg_v5', JSON.stringify(STATE));
+    localStorage.removeItem('qg_v4'); // clean up old key
+  }catch(e){}
 }
 loadState();
 
@@ -764,11 +861,11 @@ function computeTopic(base){
       if(sq>0){q+=sq; a+=sa;}
     }
     if(['SPACED_REV','THEORY_REV','QUICK_REV','ERROR_REV','FINAL_REV'].includes(s.tipo)){
-      if(sq>0){latestRevPct=Math.round(sa/sq*100); latestRevDate=s.data;}
+      if(sq>0){latestRevPct=safe_pct(sa,sq); latestRevDate=s.data;}
     }
   }
 
-  if(q>0&&a>0) pct=Math.round(a/q*100);
+  if(q>0&&a>0) pct=safe_pct(a,q);
   if(latestRevPct!==null) pct=latestRevPct;
 
   // SPACED REPETITION (SM-2 simplified). Only after Q3_DONE.
@@ -930,13 +1027,20 @@ function recomputeScheduler(){
     const label=`${wkStart.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})} – ${wkEnd.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'})}`;
     const foco=tasks.length?[...new Set(tasks.map(t=>t.n))].slice(0,2).join(' · '):'Semana livre';
 
+    // Assign stable UIDs to tasks before pushing
+    tasks.forEach(t => {
+      if(!t.uid) t.uid = `${wkISO}_${t.type}_${t.topicId||t.n||'x'}`;
+    });
     WEEKS.push({wkISO,wkEndISO,label,isCurrent,isPast,tasks,min,cap:CAP,foco});
-
-    // If this is the current week and we already have a snapshot, preserve it
-    // (snapshot is the frozen view the user sees — never overwrite it)
-    if(isCurrent && STATE.wkSnapshot[wkISO]){
-      // Keep the snapshot — don't touch it here
-      // renderSemana will use STATE.wkSnapshot, not curWk.tasks
+    // weekPlan: freeze current week on first scheduler run — never overwrite
+    if(isCurrent && !STATE.weekPlans[wkISO]){
+      STATE.weekPlans[wkISO] = tasks.map(function(t,i){
+        return Object.assign({},t,{
+          uid: t.uid||(wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i)),
+          idx: i,
+          min: t.min||(t.type==='NEW'?90:35)
+        });
+      });
     }
   }
 }
@@ -970,7 +1074,7 @@ document.getElementById('today-str').textContent=TODAY.toLocaleDateString('pt-BR
 function updateSidebar(){
   const all=computeAll();
   const dom=all.filter(t=>t.stage==='Q3_DONE').length;
-  const pct=Math.round(dom/all.length*100);
+  const pct=safe_pct(dom,all.length);
   document.getElementById('sb-pct').textContent=pct+'%';
   document.getElementById('sb-fill').style.width=pct+'%';
   const late=all.filter(t=>t.revStatus==='late').length;
@@ -996,7 +1100,7 @@ function calcPct(pfx){
   const a=+document.getElementById(pfx+'-a').value||0;
   const div=document.getElementById(pfx+'-mac');
   const pv=document.getElementById(pfx+'-macv');
-  if(q>0&&div&&pv){div.style.display='block';const p=Math.round(a/q*100);pv.textContent=p+'%';pv.style.color=acColor(p);}
+  if(q>0&&div&&pv){div.style.display='block';const p=safe_pct(a,q);pv.textContent=p+'%';pv.style.color=acColor(p);}
   else if(div) div.style.display='none';
 }
 // Pending recompute timer — debounced to avoid aggressive re-render
@@ -1006,6 +1110,7 @@ function afterSave(){
   // 1. Persist and invalidate cache immediately
   persistState();
   invalidateCache();
+  SYNC.dirty = true;
   // 2. Update sidebar counts (fast, no re-render)
   updateSidebar();
   // 3. Schedule recompute AFTER visual feedback settles (800ms)
@@ -1021,6 +1126,8 @@ function afterSave(){
     if(pid === 'page-fila') renderFila();
     if(pid === 'page-revisoes') renderRevisoes();
     if(pid === 'page-perf') renderPerf();
+    // page-semana: intentionally NOT re-rendered — snapshot board is stable
+    // page-cron: only metrics, never task lists
   }, 800);
 }
 
@@ -1046,7 +1153,7 @@ function _refreshHojeMetricsOnly(){
   const wq=ws.reduce((t,s)=>t+s.q,0),wa=ws.reduce((t,s)=>t+s.a,0);
   document.getElementById('h-wkstats').innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px">
-      ${[['Sessões',ws.length],['Questões',wq],['Acerto',wq>0?Math.round(wa/wq*100)+'%':'—']].map(([l,v])=>`
+      ${[['Sessões',ws.length],['Questões',wq],['Acerto',wq>0?safe_pct(wa,wq)+'%':'—']].map(([l,v])=>`
       <div style="text-align:center;padding:9px;background:var(--s2);border-radius:var(--r)">
         <div style="font-size:17px;font-weight:300">${v}</div>
         <div style="font-size:10px;color:var(--t3)">${l}</div>
@@ -1058,11 +1165,14 @@ function _refreshHojeMetricsOnly(){
 function _refreshCronMetricsOnly(){
   const all=computeAll();
   const totalT=WEEKS.reduce((t,w)=>t+w.tasks.length,0);
-  const doneT=WEEKS.reduce((t,w)=>{const c=STATE.wkChecks[w.wkISO]||{};return t+Object.values(c).filter(Boolean).length;},0);
+  const doneT=WEEKS.reduce(function(total,w){
+    var ex=STATE.weekExecution[w.wkISO]||{};
+    return total+Object.values(ex).filter(function(v){return v&&v.completed;}).length;
+  },0);
   const late=all.filter(t=>t.revStatus==='late').length;
   const curWk=WEEKS.find(w=>w.isCurrent);
   document.getElementById('cr-metrics').innerHTML=[
-    {l:'Tarefas concluídas',v:`${doneT}/${totalT}`,s:`${totalT?Math.round(doneT/totalT*100):0}%`},
+    {l:'Tarefas concluídas',v:`${doneT}/${totalT}`,s:`${totalT?safe_pct(doneT,totalT):0}%`},
     {l:'Rev. atrasadas',v:late,s:'urgente',c:late>0?'color:var(--red)':''},
     {l:'Semana atual',v:curWk?curWk.label:'—',s:''},
     {l:'Semanas geradas',v:WEEKS.length,s:'auto-derivadas'},
@@ -1102,7 +1212,7 @@ function doSaveQ(){
   const ts=STATE.sessions.filter(s=>s.data===ISO_TODAY);
   document.getElementById('sq-today').innerHTML=ts.length?
     ts.map(s=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--b);font-size:11px">
-      <span>${s.n}</span><span style="color:${s.q>0?acColor(Math.round(s.a/s.q*100)):'var(--t3)'}">${s.q>0?Math.round(s.a/s.q*100)+'%':'—'}</span>
+      <span>${s.n}</span><span style="color:${s.q>0?acColor(safe_pct(s.a,s.q)):'var(--t3)'}">${s.q>0?safe_pct(s.a,s.q)+'%':'—'}</span>
     </div>`).join(''):'<span style="color:var(--t3)">Nenhuma hoje.</span>';
 }
 
@@ -1210,7 +1320,7 @@ function renderHoje(){
   const wq=ws.reduce((t,s)=>t+s.q,0),wa=ws.reduce((t,s)=>t+s.a,0);
   document.getElementById('h-wkstats').innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px">
-      ${[['Sessões',ws.length],['Questões',wq],['Acerto',wq>0?Math.round(wa/wq*100)+'%':'—']].map(([l,v])=>`
+      ${[['Sessões',ws.length],['Questões',wq],['Acerto',wq>0?safe_pct(wa,wq)+'%':'—']].map(([l,v])=>`
       <div style="text-align:center;padding:9px;background:var(--s2);border-radius:var(--r)">
         <div style="font-size:17px;font-weight:300">${v}</div>
         <div style="font-size:10px;color:var(--t3)">${l}</div>
@@ -1263,130 +1373,231 @@ function renderHoje(){
 // LAYER 11 — SEMANA
 // ═══════════════════════════════════════════════════════
 function renderSemana(){
-  const curWk = WEEKS.find(w=>w.isCurrent) || WEEKS[0];
+  if(!WEEKS.length) recomputeScheduler();
+  const curWk = WEEKS.find(w => w.isCurrent) || WEEKS[0];
   if(!curWk){
-    document.getElementById('sem-tasks').innerHTML='<div class="empty">Scheduler não computado.</div>';
+    document.getElementById('sem-tasks').innerHTML = '<div class="empty">Scheduler não computado.</div>';
     return;
   }
 
-  // ── SNAPSHOT: freeze current week tasks on first render ─────────
-  // Once the week starts, its task list never changes — only completion state changes.
-  if(!STATE.wkSnapshot[curWk.wkISO]){
-    STATE.wkSnapshot[curWk.wkISO] = curWk.tasks.map((t,i)=>({...t, idx:i}));
+  // WEEK PLAN: freeze once on first render, never overwrite
+  if(!STATE.weekPlans[curWk.wkISO]){
+    STATE.weekPlans[curWk.wkISO] = curWk.tasks.map(function(t,i){
+      return Object.assign({},t,{
+        uid: t.uid || (curWk.wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i)),
+        idx: i,
+        min: t.min || (t.type==='NEW'?90:35)
+      });
+    });
     persistState();
   }
-  const frozenTasks = STATE.wkSnapshot[curWk.wkISO];
-  const checks = STATE.wkChecks[curWk.wkISO] || {};
-  const done = Object.values(checks).filter(Boolean).length;
 
-  document.getElementById('sem-chip').textContent=`${done}/${frozenTasks.length} · ${Math.round(curWk.min/60*10)/10}h`;
+  // SOURCE OF TRUTH: weekPlans + weekExecution
+  var plan = STATE.weekPlans[curWk.wkISO];
+  var exec = STATE.weekExecution[curWk.wkISO] || {};
+  var done = plan.filter(function(t){ return exec[t.uid||String(t.idx)] && exec[t.uid||String(t.idx)].completed; }).length;
+  var pct  = plan.length ? Math.round(done/plan.length*100) : 0;
+  var pctColor = pct>=80?'var(--grn)':pct>=50?'var(--amb)':'var(--t)';
 
-  document.getElementById('sem-hero').innerHTML=`
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:var(--r2);padding:11px 13px">
-      <div class="rb mb4">
-        <div>
-          <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">Semana atual — derivada do scheduler</div>
-          <div style="font-size:13px;font-weight:600;margin-top:1px">${curWk.label}</div>
-        </div>
-        <span class="chip cdk">${done}/${frozenTasks.length}</span>
-      </div>
-      <div style="font-size:11px;color:var(--t2);margin-bottom:6px">${curWk.foco}</div>
-      <div class="wkprog">${frozenTasks.map((_,i)=>`<div class="wkps ${checks[i]?'done':''}"></div>`).join('')}</div>
-    </div>`;
+  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+Math.round(curWk.min/60*10)/10+'h';
 
-  const TL={NEW:'NOVO',SPACED_REV:'REVISÃO',Q2_TASK:'Q2',Q3_TASK:'Q3'};
-  const TC={NEW:'tp-novo',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
+  // HERO
+  var progStrip = plan.map(function(t){
+    var k=t.uid||String(t.idx);
+    return '<div class="wkps '+(exec[k]&&exec[k].completed?'done':'')+'"></div>';
+  }).join('');
 
-  // Render frozen tasks — completion state from wkChecks
-  document.getElementById('sem-tasks').innerHTML = frozenTasks.map((t,i)=>`
-    <div class="tc ${checks[i]?'done-c':''}" id="stc-${curWk.wkISO}-${i}"
-         style="${checks[i]?'border-color:#86efac;':''}">
-      <input type="checkbox" ${checks[i]?'checked':''} onchange="toggleTask('${curWk.wkISO}',${i},this)"
-             style="margin-top:2px;flex-shrink:0">
-      <div class="tc-main">
-        <div class="tc-title ${checks[i]?'crossed':''}" id="stl-${curWk.wkISO}-${i}">${t.label}</div>
-        <div class="tc-meta">
-          <span class="tp ${TC[t.type]||'tp-q'}">${TL[t.type]||t.type}</span>
-          <span style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:250px">${t.explain||''}</span>
-        </div>
-      </div>
-      ${checks[i]?'<span style="font-size:14px;color:var(--grn);flex-shrink:0">✓</span>':''}
-    </div>`).join('') || '<div class="empty">Nenhuma tarefa gerada.</div>';
+  document.getElementById('sem-hero').innerHTML =
+    '<div style="background:var(--s);border:1px solid var(--b);border-radius:var(--r2);padding:11px 13px">'+
+      '<div class="rb mb4">'+
+        '<div>'+
+          '<div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">Semana atual</div>'+
+          '<div style="font-size:13px;font-weight:600;margin-top:1px">'+curWk.label+'</div>'+
+        '</div>'+
+        '<span class="chip cdk" style="color:'+pctColor+';font-weight:600">'+done+'/'+plan.length+'</span>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--t2);margin-bottom:6px">'+curWk.foco+'</div>'+
+      '<div class="wkprog">'+progStrip+'</div>'+
+    '</div>';
 
-  // Today sessions list
-  const ts = STATE.sessions.filter(s=>s.data===ISO_TODAY);
-  document.getElementById('sq-today').innerHTML = ts.length ?
-    ts.map(s=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--b);font-size:11px">
-      <span>${s.n}</span>
-      <span style="color:${s.q>0?acColor(Math.round(s.a/s.q*100)):'var(--t3)'}">${s.q>0?Math.round(s.a/s.q*100)+'%':'—'}</span>
-    </div>`).join('') : '<span style="color:var(--t3)">Nenhuma hoje.</span>';
+  // EXECUTION METRICS
+  _renderSemStats(curWk.wkISO);
 
-  document.getElementById('sq-al').innerHTML = PLANILHA.map(t=>`<option value="${t.n}">`).join('');
+  // TASK LIST
+  var TL = {NEW:'NOVO',SPACED_REV:'REVISÃO',Q2_TASK:'Q2',Q3_TASK:'Q3'};
+  var TC = {NEW:'tp-novo',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
+
+  document.getElementById('sem-tasks').innerHTML = plan.map(function(t){
+    var k      = t.uid || String(t.idx);
+    var isDone = !!(exec[k] && exec[k].completed);
+    var wk     = curWk.wkISO;
+    return '<div class="tc '+(isDone?'done-c':'')+'" id="stc-'+wk+'-'+k+'"'+(isDone?' style="border-color:#86efac;"':'')+'>'+
+      '<input type="checkbox"'+(isDone?' checked':'')+
+        ' onchange="toggleTask(\''+wk+'\',\''+k+'\',this)"'+
+        ' style="margin-top:2px;flex-shrink:0">'+
+      '<div class="tc-main">'+
+        '<div class="tc-title '+(isDone?'crossed':'')+'" id="stl-'+wk+'-'+k+'">'+t.label+'</div>'+
+        '<div class="tc-meta">'+
+          '<span class="tp '+(TC[t.type]||'tp-q')+'">'+(TL[t.type]||t.type)+'</span>'+
+          '<span style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:250px">'+(t.explain||'')+'</span>'+
+        '</div>'+
+      '</div>'+
+      (isDone?'<span class="done-icon" style="font-size:14px;color:var(--grn);flex-shrink:0">&#10003;</span>':'')+
+      '</div>';
+  }).join('') || '<div class="empty">Nenhuma tarefa no plano desta semana.</div>';
+
+  // TODAY SESSIONS
+  var ts = STATE.sessions.filter(function(s){ return s.data===ISO_TODAY; });
+  document.getElementById('sq-today').innerHTML = ts.length
+    ? ts.map(function(s){
+        return '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--b);font-size:11px">'+
+          '<span>'+s.n+'</span>'+
+          '<span style="color:'+(s.q>0?acColor(safe_pct(s.a,s.q)):'var(--t3)')+'">'+
+            (s.q>0?safe_pct(s.a,s.q)+'%':'—')+'</span></div>';
+      }).join('')
+    : '<span style="color:var(--t3)">Nenhuma hoje.</span>';
+
+  document.getElementById('sq-al').innerHTML = PLANILHA.map(function(t){ return '<option value="'+t.n+'">'; }).join('');
+
+  // DUE BLOCKS THIS WEEK
+  var allT = computeAll();
+  var dueThisWk = allT.filter(function(t){
+    return t.pendingBlocks.some(function(b){ return b.due>=curWk.wkISO&&b.due<=curWk.wkEndISO; });
+  });
+  var dueEl = document.getElementById('sem-due');
+  if(dueEl){
+    if(dueThisWk.length){
+      dueEl.style.display='block';
+      dueEl.innerHTML='<div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">&#128197; Vencimentos esta semana</div>'
+        +dueThisWk.map(function(t){
+          var blk=t.pendingBlocks.find(function(b){return b.due>=curWk.wkISO&&b.due<=curWk.wkEndISO;});
+          return '<div style="display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid var(--b)">'+
+            '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:'+(blk.block==='Q2'?'#bfdbfe':'#fde68a')+';color:'+(blk.block==='Q2'?'#1e40af':'#92400e')+'">'+blk.block+'</span>'+
+            '<span style="flex:1;font-size:11px">'+t.n+'</span>'+
+            '<span style="font-size:9px;color:var(--t3)">'+t.disc+' &middot; vence '+fmtD(blk.due)+'</span>'+
+            '</div>';
+        }).join('');
+    } else { dueEl.style.display='none'; }
+  }
 }
 
-function toggleTask(wkISO,idx,cb){
-  if(!STATE.wkChecks[wkISO]) STATE.wkChecks[wkISO]={};
-  STATE.wkChecks[wkISO][idx] = cb.checked;
+
+function toggleTask(wkISO, uid_or_idx, cb){
+  if(!STATE.weekExecution[wkISO]) STATE.weekExecution[wkISO] = {};
+
+  const key = String(uid_or_idx);
+  const now = Date.now();
+  STATE.weekExecution[wkISO][key] = {
+    completed: cb.checked,
+    completed_at: cb.checked ? now : null
+  };
   persistState();
+  SYNC.dirty = true;
 
-  // ── Visual update: only touch the specific card ───────────────
-  const tl   = document.getElementById(`stl-${wkISO}-${idx}`);
-  const card = document.getElementById(`stc-${wkISO}-${idx}`);
-
+  // Visual — only touch this card, no re-render
+  const tl   = document.getElementById('stl-' + wkISO + '-' + key);
+  const card = document.getElementById('stc-' + wkISO + '-' + key);
   if(tl) tl.classList.toggle('crossed', cb.checked);
-
   if(card){
     card.classList.toggle('done-c', cb.checked);
     card.style.borderColor = cb.checked ? '#86efac' : '';
-
-    // Add/remove checkmark icon at end of card
-    const existing = card.querySelector('.task-done-icon');
-    if(cb.checked && !existing){
-      const icon = document.createElement('span');
-      icon.className = 'task-done-icon';
-      icon.style.cssText = 'font-size:14px;color:var(--grn);flex-shrink:0;margin-left:4px';
-      icon.textContent = '✓';
-      card.appendChild(icon);
-    } else if(!cb.checked && existing){
-      existing.remove();
-    }
-
+    const icon = card.querySelector('.done-icon');
+    if(cb.checked && !icon){
+      const ic = document.createElement('span');
+      ic.className = 'done-icon';
+      ic.style.cssText = 'font-size:14px;color:var(--grn);flex-shrink:0;margin-left:4px';
+      ic.textContent = '✓';
+      card.appendChild(ic);
+    } else if(!cb.checked && icon){ icon.remove(); }
     if(cb.checked){
-      // Smooth green flash → settle to light green border
-      card.style.transition = 'background .35s,border-color .35s';
+      card.style.transition = 'background .35s';
       card.style.background = 'var(--gl)';
-      setTimeout(()=>{ card.style.background = ''; }, 650);
+      setTimeout(()=>{ card.style.background=''; }, 650);
       _showToast('✓ Tarefa concluída');
     }
   }
 
-  // ── Update counters and progress strip (no re-render) ─────────
-  const frozenTasks = STATE.wkSnapshot[wkISO] || (WEEKS.find(w=>w.wkISO===wkISO)||{}).tasks || [];
-  const total = frozenTasks.length;
-  const checks = STATE.wkChecks[wkISO] || {};
-  const done = Object.values(checks).filter(Boolean).length;
-
-  const chip = document.getElementById('sem-chip');
-  const curWk = WEEKS.find(w=>w.wkISO===wkISO);
-  if(chip) chip.textContent = `${done}/${total} · ${curWk?Math.round(curWk.min/60*10)/10:'—'}h`;
-
-  const heroChip = document.querySelector('#sem-hero .chip');
-  if(heroChip) heroChip.textContent = `${done}/${total}`;
-
-  const strip = document.querySelector('.wkprog');
-  if(strip) strip.innerHTML = frozenTasks.map((_,i)=>`<div class="wkps ${checks[i]?'done':''}"></div>`).join('');
-
-  // ── Deferred background recompute (non-visual) ────────────────
-  clearTimeout(_recomputeTimer);
-  _recomputeTimer = setTimeout(()=>{
-    _refreshCronMetricsOnly();
-    updateSidebar();
-  }, 600);
+  // Update counters + execution metrics — no re-render
+  _updateSemExecution(wkISO);
 }
 
-// ═══════════════════════════════════════════════════════
-// LAYER 12 — FILA
-// ═══════════════════════════════════════════════════════
+// Update execution metrics panel (counters only, no task list re-render)
+function _updateSemExecution(wkISO){
+  const plan = STATE.weekPlans[wkISO] || [];
+  const exec = STATE.weekExecution[wkISO] || {};
+  const done = plan.filter(t => exec[t.uid||String(t.idx)]?.completed).length;
+  const total = plan.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+
+  // Progress strip
+  const strip = document.querySelector('.wkprog');
+  if(strip) strip.innerHTML = plan.map(t => {
+    const k = t.uid || String(t.idx);
+    return '<div class="wkps '+(exec[k]?.completed?'done':'')+'"></div>';
+  }).join('');
+
+  // Chip
+  const curWk = WEEKS.find(w => w.wkISO === wkISO);
+  const chip = document.getElementById('sem-chip');
+  if(chip) chip.textContent = done+'/'+total+' · '+(curWk?Math.round(curWk.min/60*10)/10:'—')+'h';
+
+  // Hero chip
+  const heroChip = document.querySelector('#sem-hero .chip');
+  if(heroChip) heroChip.textContent = done+'/'+total;
+
+  // Execution metrics panel
+  _renderSemStats(wkISO);
+}
+
+// Render the execution metrics card
+function _renderSemStats(wkISO){
+  const statsEl = document.getElementById('sem-stats');
+  if(!statsEl) return;
+  const plan = STATE.weekPlans[wkISO] || [];
+  if(!plan.length){ statsEl.style.display='none'; return; }
+  statsEl.style.display = 'block';
+
+  const exec = STATE.weekExecution[wkISO] || {};
+  const done = plan.filter(t => exec[t.uid||String(t.idx)]?.completed).length;
+  const total = plan.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+
+  // Questions from sessions this week
+  const wkStart = wkISO;
+  const curWk = WEEKS.find(w => w.wkISO === wkISO);
+  const wkEnd = curWk ? curWk.wkEndISO : wkISO;
+  const wkSess = STATE.sessions.filter(s => s.data >= wkStart && s.data <= wkEnd);
+  const qDone = wkSess.reduce((t,s) => t+(s.q||0), 0);
+  const sessCount = wkSess.length;
+
+  // Estimated hours done: sum min of completed tasks / 60
+  const minDone = plan
+    .filter(t => exec[t.uid||String(t.idx)]?.completed)
+    .reduce((s,t) => s+(t.min||35), 0);
+  const hDone = Math.round(minDone/60*10)/10;
+  const hPlanned = curWk ? Math.round(curWk.min/60*10)/10 : '—';
+
+  // Pct color
+  const pctColor = pct>=80?'var(--grn)':pct>=50?'var(--amb)':'var(--t)';
+
+  const pctV = document.getElementById('sem-pct-v');
+  const pctS = document.getElementById('sem-pct-s');
+  const qV   = document.getElementById('sem-q-v');
+  const qS   = document.getElementById('sem-q-s');
+  const sV   = document.getElementById('sem-sess-v');
+  const hV   = document.getElementById('sem-h-v');
+  const hS   = document.getElementById('sem-h-s');
+
+  if(pctV){ pctV.textContent = pct+'%'; pctV.style.color = pctColor; }
+  if(pctS) pctS.textContent = done+'/'+total+' tarefas';
+  if(qV)   qV.textContent   = qDone;
+  if(qS)   qS.textContent   = 'questões esta semana';
+  if(sV)   sV.textContent   = sessCount;
+  if(hV)   hV.textContent   = hDone+'h';
+  if(hS)   hS.textContent   = 'de '+hPlanned+'h planejadas';
+}
+
+
 function renderFila(){
   const all=computeAll();
   const disc=document.getElementById('fila-d').value;
@@ -1474,11 +1685,11 @@ function renderCron(){
   const mes=(document.getElementById('cr-mes')?.value||'').toLowerCase();
   const all=computeAll();
   const totalT=WEEKS.reduce((t,w)=>t+w.tasks.length,0);
-  const doneT=WEEKS.reduce((t,w)=>{const c=STATE.wkChecks[w.wkISO]||{};return t+Object.values(c).filter(Boolean).length;},0);
+  const doneT=WEEKS.reduce(function(total,w){var ex=STATE.weekExecution[w.wkISO]||{};return total+Object.values(ex).filter(function(v){return v&&v.completed;}).length;},0);
   const late=all.filter(t=>t.revStatus==='late').length;
   const curWk=WEEKS.find(w=>w.isCurrent);
   document.getElementById('cr-metrics').innerHTML=[
-    {l:'Tarefas concluídas',v:`${doneT}/${totalT}`,s:`${totalT?Math.round(doneT/totalT*100):0}%`},
+    {l:'Tarefas concluídas',v:`${doneT}/${totalT}`,s:`${totalT?safe_pct(doneT,totalT):0}%`},
     {l:'Rev. atrasadas',v:late,s:'urgente',c:late>0?'color:var(--red)':''},
     {l:'Semana atual',v:curWk?curWk.label:'—',s:''},
     {l:'Semanas geradas',v:WEEKS.length,s:'auto-derivadas'},
@@ -1490,9 +1701,9 @@ function renderCron(){
     if(!mes) return true;
     return new Date(w.wkISO+'T12:00:00').toLocaleDateString('pt-BR',{month:'long'}).toLowerCase().includes(mes);
   }).forEach((w,wi)=>{
-    const checks=STATE.wkChecks[w.wkISO]||{};
-    const done=Object.values(checks).filter(Boolean).length;
-    const p=w.tasks.length?Math.round(done/w.tasks.length*100):0;
+    var checks=STATE.weekExecution[w.wkISO]||{}; // raw for future weeks
+    var done=Object.values(checks).filter(function(v){return v&&v.completed;}).length;
+    const p=w.tasks.length?safe_pct(done,w.tasks.length):0;
     const el=document.createElement('div');
     el.className='wkb'+(w.isCurrent?' cur':'');
     el.innerHTML=`
@@ -1509,14 +1720,28 @@ function renderCron(){
         </div>
       </div>
       <div class="wkbody ${w.isCurrent?'open':''}" id="wb-${wi}">
-        ${w.tasks.length?w.tasks.map((t,i)=>`<div class="wktask">
-          <input type="checkbox" ${checks[i]?'checked':''} onchange="toggleTask('${w.wkISO}',${i},this)">
-          <div style="flex:1">
-            <div class="wktl ${checks[i]?'done':''}" id="stl-${w.wkISO}-${i}">${t.label}</div>
-            <div style="font-size:9px;color:var(--t3);margin-top:1px">${t.explain||''}</div>
-          </div>
-          <span class="tp ${TC[t.type]||'tp-q'}" style="flex-shrink:0">${TL[t.type]||t.type}</span>
-        </div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:5px 0">Nenhuma tarefa.</div>'}
+        ${(()=>{
+          // Current week: read from weekPlans (stable source)
+          // Future weeks: read from scheduler tasks
+          var srcTasks = (w.isCurrent && STATE.weekPlans[w.wkISO]) ? STATE.weekPlans[w.wkISO] : w.tasks;
+          var wkExec   = w.isCurrent ? (STATE.weekExecution[w.wkISO]||{}) : {};
+          var wkChks   = !w.isCurrent ? (STATE.weekExecution[w.wkISO]||checks) : {};
+          if(!srcTasks||!srcTasks.length) return '<div style="font-size:11px;color:var(--t3);padding:5px 0">Nenhuma tarefa.</div>';
+          return srcTasks.map(function(t,i){
+            var k = t.uid||String(i);
+            var isDone = w.isCurrent
+              ? !!(wkExec[k]&&wkExec[k].completed)
+              : !!(checks[k]||checks[i]);
+            return '<div class="wktask">'+
+              '<input type="checkbox"'+(isDone?' checked':'')+' onchange="toggleTask(\''+w.wkISO+'\',\''+k+'\',this)">'+
+              '<div style="flex:1">'+
+                '<div class="wktl '+(isDone?'done':'')+'" id="stl-'+w.wkISO+'-'+k+'">'+t.label+'</div>'+
+                '<div style="font-size:9px;color:var(--t3);margin-top:1px">'+(t.explain||'')+'</div>'+
+              '</div>'+
+              '<span class="tp '+(TC[t.type]||'tp-q')+'" style="flex-shrink:0">'+(TL[t.type]||t.type)+'</span>'+
+              '</div>';
+          }).join('');
+        })()}
       ${(()=>{
         // Compute due items for this week (Q2/Q3 blocks due in this week range)
         const dueItems = allTopics.filter(t => {
@@ -1646,7 +1871,7 @@ function renderPerf(){
   const all=computeAll();
   const stud=all.filter(t=>t.pct!==null&&t.pct>0);
   const tq=all.reduce((t,s)=>t+s.q,0), ta=all.reduce((t,s)=>t+s.a,0);
-  const avg=tq>0?Math.round(ta/tq*100):0;
+  const avg=tq>0?safe_pct(ta,tq):0;
   const q3n=all.filter(t=>t.stage==='Q3_DONE').length;
   const late=all.filter(t=>t.revStatus==='late').length;
   document.getElementById('perf-m').innerHTML=[
@@ -1691,7 +1916,7 @@ function renderHist(){
   const tq=sess.reduce((t,s)=>t+s.q,0), ta=sess.reduce((t,s)=>t+s.a,0);
   document.getElementById('hist-m').innerHTML=[
     {l:'Sessões',v:sess.length},{l:'Questões',v:tq},
-    {l:'Acerto médio',v:tq>0?Math.round(ta/tq*100)+'%':'—'},
+    {l:'Acerto médio',v:tq>0?safe_pct(ta,tq)+'%':'—'},
     {l:'Temas únicos',v:[...new Set(sess.map(s=>s.n))].length},
   ].map(m=>`<div class="mc"><div class="ml">${m.l}</div><div class="mv">${m.v}</div></div>`).join('');
   const TLB={CONTENT_SEEN:'Novo',Q1_DONE:'Q1',Q2_DONE:'Q2',Q3_DONE:'Q3',SPACED_REV:'Rev.esp',THEORY_REV:'Rev.teo',QUICK_REV:'Rev.rap',ERROR_REV:'Rev.err',FINAL_REV:'Rev.fin'};
@@ -1703,7 +1928,7 @@ function renderHist(){
     <td><span class="tag ${TCL[s.tipo]||'tag-new'}">${TLB[s.tipo]||s.tipo}</span></td>
     <td style="text-align:center">${s.q||'—'}</td>
     <td style="text-align:center">${s.q?s.a:'—'}</td>
-    <td style="text-align:center">${s.q?`<span style="font-weight:600;color:${acColor(Math.round(s.a/s.q*100))}">${Math.round(s.a/s.q*100)}%</span>`:'—'}</td>
+    <td style="text-align:center">${s.q?`<span style="font-weight:600;color:${acColor(safe_pct(s.a,s.q))}">${safe_pct(s.a,s.q)}%</span>`:'—'}</td>
     <td style="font-size:10px;color:var(--t3);max-width:120px;overflow:hidden;text-overflow:ellipsis">${s.obs||''}</td>
     <td><button class="btn btn-sm" onclick="delSess('${s.id}')" style="color:var(--red)">✕</button></td>
   </tr>`).join('');
@@ -1724,7 +1949,7 @@ function renderSims(){
   el.innerHTML=`<table class="tbl"><thead><tr><th>Data</th><th>Banca</th><th>Q</th><th>Acertos</th><th>%</th><th>Obs.</th><th></th></tr></thead>
   <tbody>${[...STATE.simulados].sort((a,b)=>b.data.localeCompare(a.data)).map(s=>`<tr>
     <td style="font-size:10px">${fmtD(s.data)}</td><td>${s.b}</td><td>${s.q}</td><td>${s.a}</td>
-    <td style="font-weight:600;color:${acColor(Math.round(s.a/s.q*100))}">${Math.round(s.a/s.q*100)}%</td>
+    <td style="font-weight:600;color:${acColor(safe_pct(s.a,s.q))}">${safe_pct(s.a,s.q)}%</td>
     <td style="font-size:10px;color:var(--t2)">${s.obs||'—'}</td>
     <td><button class="btn btn-sm" onclick="delSim('${s.id}')" style="color:var(--red)">✕</button></td>
   </tr>`).join('')}</tbody></table>`;
@@ -1758,7 +1983,7 @@ function doExportXLSX(){
   if(typeof XLSX==='undefined'){alert('XLSX não carregado.');return;}
   const wb=XLSX.utils.book_new(),all=computeAll();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(
-    STATE.sessions.map(s=>({Data:s.data,Assunto:s.n,Área:s.disc,Tipo:s.tipo,Questões:s.q,Acertos:s.a,'%':s.q?Math.round(s.a/s.q*100):0,Obs:s.obs}))),'Sessões');
+    STATE.sessions.map(s=>({Data:s.data,Assunto:s.n,Área:s.disc,Tipo:s.tipo,Questões:s.q,Acertos:s.a,'%':s.q?safe_pct(s.a,s.q):0,Obs:s.obs}))),'Sessões');
   ['CLM','CLC','GO','PED','PREVENTIVA'].forEach(d=>{
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(
       all.filter(t=>t.disc===d).map(t=>({Tópico:t.topico,Assunto:t.n,AMRIGS:t.am,AMP:t.ap,SANAR:t.sa,Score:t.inc,Stage:STAGE_LABEL[t.extStage]||t.extStage,Q:t.q,'Acerto%':t.pct||0,r1:t.r1||'',r2:t.r2||'',r3:t.r3||'',PróxRev:t.nextRev||'',Intervalo:t.revInterval||'',Prioridade:t.priority}))),d);
@@ -1801,15 +2026,10 @@ function renderRoadChart(){
   if(el) el.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 });
 
-// Final safety: if state is empty, force reload from embedded snapshot
-(function(){
-  try{
-    if(!STATE || STATE.sessions.length === 0){
-      const raw = localStorage.getItem('qg_v4');
-      if(raw){ const p=JSON.parse(raw); if(p.sessions&&p.sessions.length>0) STATE=p; }
-    }
-  }catch(e){}
-})();
+// Safety: ensure weekPlans/weekExecution always exist
+if(!STATE.weekPlans)     STATE.weekPlans     = {};
+if(!STATE.weekExecution) STATE.weekExecution = {};
+migrateState();
 recomputeScheduler();
 updateSidebar();
 renderHoje();
@@ -1896,7 +2116,7 @@ async function syncLoad() {
   try {
     const r = await fetch(SYNC.url + '?t=' + Date.now());
     const remote = await r.json();
-    if (remote && remote.v === 4) {
+    if (remote && (remote.v === 4 || remote.v === 5)) {
       const merged = syncMerge(STATE, remote);
       STATE = merged;
       persistState();
@@ -1927,27 +2147,31 @@ async function syncLoad() {
 
 function syncMerge(local, remote) {
   // Sessions: union by id
-  const map = {};
-  [...(remote.sessions||[]), ...(local.sessions||[])].forEach(s => { map[s.id] = s; });
-  const sessions = Object.values(map).sort((a,b) => a.data.localeCompare(b.data));
+  var sessMap = {};
+  (remote.sessions||[]).concat(local.sessions||[]).forEach(function(s){ sessMap[s.id]=s; });
+  var sessions = Object.values(sessMap).sort(function(a,b){ return a.data.localeCompare(b.data); });
 
   // Heatmap: max per day
-  const heatmap = { ...(remote.heatmap||{}), ...(local.heatmap||{}) };
-  for (const k of Object.keys(remote.heatmap||{})) {
-    heatmap[k] = Math.max(local.heatmap?.[k]||0, remote.heatmap[k]||0);
-  }
+  var heatmap = {};
+  Object.keys(Object.assign({},remote.heatmap||{},local.heatmap||{})).forEach(function(k){
+    heatmap[k]=Math.max((remote.heatmap||{})[k]||0,(local.heatmap||{})[k]||0);
+  });
 
-  // wkChecks & simulados: local wins (most recent edits)
-  const simMap = {};
-  [...(remote.simulados||[]), ...(local.simulados||[])].forEach(s => { simMap[s.id] = s; });
+  // weekExecution: per-week merge, union of completed states
+  var weekExecution = {};
+  var allWks = new Set(Object.keys(remote.weekExecution||{}).concat(Object.keys(local.weekExecution||{})));
+  allWks.forEach(function(wk){
+    weekExecution[wk]=Object.assign({},(remote.weekExecution||{})[wk]||{},(local.weekExecution||{})[wk]||{});
+  });
 
-  return {
-    sessions,
-    simulados: Object.values(simMap),
-    wkChecks: { ...(remote.wkChecks||{}), ...(local.wkChecks||{}) },
-    heatmap,
-    v: 4
-  };
+  // weekPlans: local wins (most recent freeze)
+  var weekPlans = Object.assign({},(remote.weekPlans||{}),(local.weekPlans||{}));
+
+  // simulados: union by id
+  var simMap = {};
+  (remote.simulados||[]).concat(local.simulados||[]).forEach(function(s){ simMap[s.id]=s; });
+
+  return {sessions:sessions, simulados:Object.values(simMap), weekExecution:weekExecution, weekPlans:weekPlans, heatmap:heatmap, v:5};
 }
 
 function syncSetUrl(url) {
@@ -2124,9 +2348,9 @@ function cfgRenderBancaSliders(){
   // Current % from BANCA_CFG (normalize back to %)
   const total = BANCA_CFG.amrigs + BANCA_CFG.amp + BANCA_CFG.sanar;
   const pcts = {
-    amrigs: total>0 ? Math.round(BANCA_CFG.amrigs/total*100) : 34,
-    amp:    total>0 ? Math.round(BANCA_CFG.amp/total*100)    : 33,
-    sanar:  total>0 ? Math.round(BANCA_CFG.sanar/total*100)  : 33,
+    amrigs: total>0 ? safe_pct(BANCA_CFG.amrigs,total) : 34,
+    amp:    total>0 ? safe_pct(BANCA_CFG.amp,total)    : 33,
+    sanar:  total>0 ? safe_pct(BANCA_CFG.sanar,total)  : 33,
   };
 
   const ct = document.getElementById('cfg-banca-sliders');
@@ -2179,7 +2403,7 @@ function cfgUpdatePriorityPreview(){
         <div style="font-size:11px;font-weight:500">${t.n}</div>
         <div style="font-size:9px;color:var(--t3)">${t.disc} · Inc. ${t.inc}</div>
         <div style="height:3px;background:var(--s3);border-radius:2px;margin-top:3px;overflow:hidden">
-          <div style="width:${Math.round(t.priority/max*100)}%;height:100%;background:${DISC_COLOR[t.disc]};border-radius:2px"></div>
+          <div style="width:${safe_pct(t.priority,max)}%;height:100%;background:${DISC_COLOR[t.disc]};border-radius:2px"></div>
         </div>
       </div>
       <span style="font-size:12px;font-weight:700;color:var(--t)">${t.priority}</span>
