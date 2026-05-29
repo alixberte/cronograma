@@ -1,0 +1,347 @@
+{
+  "sessions": [
+    {
+      "id": "u1779810041958",
+      "data": "2026-05-25",
+      "n": "Doenças Hipertensivas",
+      "disc": "GO",
+      "tipo": "CONTENT_SEEN",
+      "q": 0,
+      "a": 0,
+      "obs": ""
+    },
+    {
+      "id": "u1779810610506",
+      "data": "2026-05-25",
+      "n": "DIP",
+      "disc": "GO",
+      "tipo": "CONTENT_SEEN",
+      "q": 0,
+      "a": 0,
+      "obs": ""
+    },
+    {
+      "id": "u1779810118570",
+      "data": "2026-05-26",
+      "n": "Doenças Hipertensivas",
+      "disc": "GO",
+      "tipo": "Q1_DONE",
+      "q": 15,
+      "a": 9,
+      "obs": "Aprofundar"
+    },
+    {
+      "id": "u1779810392088",
+      "data": "2026-05-26",
+      "n": "Osteoporose",
+      "disc": "CLM",
+      "tipo": "CONTENT_SEEN",
+      "q": 0,
+      "a": 0,
+      "obs": ""
+    },
+    {
+      "id": "u1779810534542",
+      "data": "2026-05-26",
+      "n": "Abdome agudo perfurativo",
+      "disc": "CLC",
+      "tipo": "CONTENT_SEEN",
+      "q": 0,
+      "a": 0,
+      "obs": ""
+    },
+    {
+      "id": "u1779810577398",
+      "data": "2026-05-26",
+      "n": "Abdome agudo hemorragico",
+      "disc": "CLC",
+      "tipo": "Q1_DONE",
+      "q": 7,
+      "a": 5,
+      "obs": ""
+    },
+    {
+      "id": "u1779810670990",
+      "data": "2026-05-26",
+      "n": "DIP",
+      "disc": "GO",
+      "tipo": "Q1_DONE",
+      "q": 13,
+      "a": 9,
+      "obs": ""
+    },
+    {
+      "id": "u1779810704729",
+      "data": "2026-05-26",
+      "n": "Bronquiolite",
+      "disc": "PED",
+      "tipo": "Q1_DONE",
+      "q": 8,
+      "a": 8,
+      "obs": ""
+    },
+    {
+      "id": "u1779810721204",
+      "data": "2026-05-26",
+      "n": "Coqueluche",
+      "disc": "PED",
+      "tipo": "Q1_DONE",
+      "q": 7,
+      "a": 6,
+      "obs": ""
+    },
+    {
+      "id": "u1779810758291",
+      "data": "2026-05-26",
+      "n": "Osteoporose",
+      "disc": "CLM",
+      "tipo": "Q1_DONE",
+      "q": 15,
+      "a": 9,
+      "obs": ""
+    },
+    {
+      "id": "u1779810810765",
+      "data": "2026-05-26",
+      "n": "Disturbios puberais",
+      "disc": "PED",
+      "tipo": "SPACED_REV",
+      "q": 15,
+      "a": 11,
+      "obs": ""
+    },
+    {
+      "id": "u1779834946330",
+      "data": "2026-05-26",
+      "n": "Imagenologia e Neoplasia de Mama",
+      "disc": "GO",
+      "tipo": "SPACED_REV",
+      "q": 14,
+      "a": 13,
+      "obs": ""
+    },
+    {
+      "id": "u1779810503715",
+      "data": "2026-05-26",
+      "n": "Osteoporose",
+      "disc": "CLM",
+      "tipo": "CONTENT_SEEN",
+      "q": 15,
+      "a": 9,
+      "obs": "Fármacos, sei pouco"
+    },
+    {
+      "id": "u1779810639006",
+      "data": "2026-05-27",
+      "n": "DIP",
+      "disc": "GO",
+      "tipo": "CONTENT_SEEN",
+      "q": 13,
+      "a": 9,
+      "obs": ""
+    },
+    {
+      "id": "u1779983593142",
+      "data": "2026-05-28",
+      "n": "Infecções Congênitas",
+      "disc": "PED",
+      "tipo": "SPACED_REV",
+      "q": 15,
+      "a": 10,
+      "obs": ""
+    },
+    {
+      "id": "u1779997834827",
+      "data": "2026-05-28",
+      "n": "Complicações cx e pós op",
+      "disc": "CLC",
+      "tipo": "Q3_DONE",
+      "q": 15,
+      "a": 13,
+      "obs": ""
+    },
+    {
+      "id": "u1780065251750",
+      "data": "2026-05-29",
+      "n": "Transtornos neurodesenvolvimento",
+      "disc": "PED",
+      "tipo": "SPACED_REV",
+      "q": 15,
+      "a": 14,
+      "obs": ""
+    },
+    {
+      "id": "u1780082932563",
+      "data": "2026-05-29",
+      "n": "Dist Equilíbrio Ácido Basico",
+      "disc": "CLM",
+      "tipo": "CONTENT_SEEN",
+      "q": 0,
+      "a": 0,
+      "obs": ""
+    }
+  ],
+  "simulados": [],
+  "weekExecution": {
+    "2026-05-25": {
+      "2026-05-25_SPACED_REV_GO::Vitalidade Fetal, Sofrimento Agudo e Crônico": {
+        "completed": false,
+        "completed_at": null
+      },
+      "2026-05-25_SPACED_REV_PREVENTIVA::Programas e Politicas": {
+        "completed": true,
+        "completed_at": 1780056655453
+      },
+      "2026-05-25_SPACED_REV_CLM::HAS": {
+        "completed": false,
+        "completed_at": null
+      },
+      "2026-05-25_SPACED_REV_PED::Transtornos neurodesenvolvimento": {
+        "completed": true,
+        "completed_at": 1780065268725
+      },
+      "2026-05-25_NEW_CLM::Dist Equilíbrio Ácido Basico": {
+        "completed": true,
+        "completed_at": 1780082939910
+      },
+      "2026-05-25_NEW_PREVENTIVA::Med baseada e evidência": {
+        "completed": false,
+        "completed_at": null
+      }
+    }
+  },
+  "weekPlans": {
+    "2026-05-25": [
+      {
+        "type": "SPACED_REV",
+        "topicId": "PED::Transtornos neurodesenvolvimento",
+        "disc": "PED",
+        "n": "Transtornos neurodesenvolvimento",
+        "pct": 64,
+        "label": "🔴 Rev. atrasada: Transtornos neurodesenvolvimento (PED) — acerto 64%",
+        "explain": "Revisão espaçada vencida · acerto 64% · SM-2 intervalo 30d · prioridade 163",
+        "uid": "2026-05-25_SPACED_REV_PED::Transtornos neurodesenvolvimento",
+        "idx": 0,
+        "min": 30
+      },
+      {
+        "type": "SPACED_REV",
+        "topicId": "GO::Vitalidade Fetal, Sofrimento Agudo e Crônico",
+        "disc": "GO",
+        "n": "Vitalidade Fetal, Sofrimento Agudo e Crônico",
+        "pct": 54,
+        "label": "🔴 Rev. atrasada: Vitalidade Fetal, Sofrimento Agudo e Crônico (GO) — acerto 54%",
+        "explain": "Revisão espaçada vencida · acerto 54% · SM-2 intervalo 15d · prioridade 167",
+        "uid": "2026-05-25_SPACED_REV_GO::Vitalidade Fetal, Sofrimento Agudo e Crônico",
+        "idx": 1,
+        "min": 30
+      },
+      {
+        "type": "SPACED_REV",
+        "topicId": "PREVENTIVA::Programas e Politicas",
+        "disc": "PREVENTIVA",
+        "n": "Programas e Politicas",
+        "pct": 68,
+        "label": "🔴 Rev. atrasada: Programas e Politicas (PREVENTIVA) — acerto 68%",
+        "explain": "Revisão espaçada vencida · acerto 68% · SM-2 intervalo 30d · prioridade 184",
+        "uid": "2026-05-25_SPACED_REV_PREVENTIVA::Programas e Politicas",
+        "idx": 2,
+        "min": 30
+      },
+      {
+        "type": "Q3_TASK",
+        "topicId": "CLC::Principios de anestesia",
+        "disc": "CLC",
+        "n": "Principios de anestesia",
+        "label": "⚠ Atrasado Q3: Principios de anestesia",
+        "explain": "Gerado auto: Q3 vence 25 de mar. (ATRASADO) · prioridade 193",
+        "uid": "2026-05-25_Q3_TASK_CLC::Principios de anestesia",
+        "idx": 3,
+        "min": 30
+      },
+      {
+        "type": "Q3_TASK",
+        "topicId": "PREVENTIVA::Estudos epidemiológicos",
+        "disc": "PREVENTIVA",
+        "n": "Estudos epidemiológicos",
+        "label": "⚠ Atrasado Q3: Estudos epidemiológicos",
+        "explain": "Gerado auto: Q3 vence 28 de abr. (ATRASADO) · prioridade 183",
+        "uid": "2026-05-25_Q3_TASK_PREVENTIVA::Estudos epidemiológicos",
+        "idx": 4,
+        "min": 30
+      },
+      {
+        "type": "Q3_TASK",
+        "topicId": "CLC::Feridas e Retalhos",
+        "disc": "CLC",
+        "n": "Feridas e Retalhos",
+        "label": "⚠ Atrasado Q3: Feridas e Retalhos",
+        "explain": "Gerado auto: Q3 vence 02 de mai. (ATRASADO) · prioridade 182",
+        "uid": "2026-05-25_Q3_TASK_CLC::Feridas e Retalhos",
+        "idx": 5,
+        "min": 30
+      },
+      {
+        "type": "NEW",
+        "topicId": "CLC::ATLS",
+        "disc": "CLC",
+        "n": "ATLS",
+        "label": "Questões Q1: ATLS (CLC)",
+        "explain": "Prioridade 117 · incidência 15 · peso CLC 21.1% · Conteúdo visto",
+        "uid": "2026-05-25_NEW_CLC::ATLS",
+        "idx": 6,
+        "min": 80
+      },
+      {
+        "type": "NEW",
+        "topicId": "PREVENTIVA::Med baseada e evidência",
+        "disc": "PREVENTIVA",
+        "n": "Med baseada e evidência",
+        "label": "Questões Q1: Med baseada e evidência (PREVENTIVA)",
+        "explain": "Prioridade 112 · incidência 13 · peso PREVENTIVA 24.6% · Conteúdo visto",
+        "uid": "2026-05-25_NEW_PREVENTIVA::Med baseada e evidência",
+        "idx": 7,
+        "min": 80
+      },
+      {
+        "type": "NEW",
+        "topicId": "CLM::Dist Equilíbrio Ácido Basico",
+        "disc": "CLM",
+        "n": "Dist Equilíbrio Ácido Basico",
+        "label": "Novo conteúdo: Dist Equilíbrio Ácido Basico (CLM)",
+        "explain": "Prioridade 97 · incidência 13 · peso CLM 20.7% · Não iniciado",
+        "uid": "2026-05-25_NEW_CLM::Dist Equilíbrio Ácido Basico",
+        "idx": 8,
+        "min": 80
+      },
+      {
+        "type": "NEW",
+        "topicId": "PED::Pneumonia comunitária",
+        "disc": "PED",
+        "n": "Pneumonia comunitária",
+        "label": "Novo conteúdo: Pneumonia comunitária (PED)",
+        "explain": "Prioridade 91 · incidência 12 · peso PED 18.0% · Não iniciado",
+        "uid": "2026-05-25_NEW_PED::Pneumonia comunitária",
+        "idx": 9,
+        "min": 80
+      }
+    ]
+  },
+  "weekHistory": {},
+  "schedulerParams": {
+    "minNew": 50,
+    "minQ1": 30,
+    "minQ2": 30,
+    "minQ3": 30,
+    "minRev": 30,
+    "hrsPerWk": 15
+  },
+  "heatmap": {
+    "2026-05-25": 2,
+    "2026-05-26": 12,
+    "2026-05-27": 1,
+    "2026-05-28": 10,
+    "2026-05-29": 4
+  },
+  "v": 5
+}
