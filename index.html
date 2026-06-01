@@ -2433,6 +2433,24 @@ function renderHistSemanal(){
 }
 
 
+
+// ═══════════════════════════════════════════════════════
+// BANCA WEIGHTS CONFIG — Dynamic priority engine
+// ═══════════════════════════════════════════════════════
+const BANCA_DEFAULTS = {amrigs:1.0, amp:1.0, sanar:1.0};
+let BANCA_CFG = {...BANCA_DEFAULTS};
+
+function bancaLoadCfg(){
+  try{
+    const r=localStorage.getItem('qg_banca_cfg');
+    if(r){ const p=JSON.parse(r); BANCA_CFG={...BANCA_DEFAULTS,...p}; }
+  }catch(e){}
+}
+function bancaSaveCfg(){
+  try{ localStorage.setItem('qg_banca_cfg', JSON.stringify(BANCA_CFG)); }catch(e){}
+}
+bancaLoadCfg();
+
 // Safety: ensure all v5 fields exist
 if(!STATE.weekPlans)       STATE.weekPlans       = {};
 if(!STATE.weekExecution)   STATE.weekExecution   = {};
@@ -2447,21 +2465,19 @@ renderHoje();
 document.getElementById('mr-al').innerHTML=PLANILHA.map(t=>`<option value="${t.n}">`).join('');
 
 
-document.addEventListener('DOMContentLoaded',()=>{
-  const tr=document.querySelector('.tbl-r');
-  if(tr){
-    const w=document.createElement('div');
-    w.style.cssText='display:flex;align-items:center;gap:5px;cursor:pointer';
-    w.onclick=syncOpenSettings;w.title='Sincronização com Google Drive';
-    w.innerHTML=`<span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0;display:inline-block"></span><span id="sync-lbl" style="font-size:10px;color:var(--t3);white-space:nowrap"></span><button id="sync-btn" class="btn btn-sm" onclick="event.stopPropagation();syncLoad()" style="padding:2px 6px;font-size:11px">↻</button>`;
-    tr.insertBefore(w,tr.lastElementChild);
-  }
-  const sb=document.querySelector('.sb-foot');
-  if(sb){const l=document.createElement('div');l.style.cssText='margin-top:7px;cursor:pointer;font-size:10px;color:var(--blue)';l.textContent='☁ Configurar Drive sync';l.onclick=syncOpenSettings;sb.appendChild(l);}
+const tr=document.querySelector('.tbl-r');
+if(tr){
+  const w=document.createElement('div');
+  w.style.cssText='display:flex;align-items:center;gap:5px;cursor:pointer';
+  w.onclick=syncOpenSettings;w.title='Sincronização com Google Drive';
+  w.innerHTML=`<span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0;display:inline-block"></span><span id="sync-lbl" style="font-size:10px;color:var(--t3);white-space:nowrap"></span><button id="sync-btn" class="btn btn-sm" onclick="event.stopPropagation();syncLoad()" style="padding:2px 6px;font-size:11px">↻</button>`;
+  tr.insertBefore(w,tr.lastElementChild);
+}
+const sb=document.querySelector('.sb-foot');
+if(sb){const l=document.createElement('div');l.style.cssText='margin-top:7px;cursor:pointer;font-size:10px;color:var(--blue)';l.textContent='☁ Configurar Drive sync';l.onclick=syncOpenSettings;sb.appendChild(l);}
 
 
-  srFillForm();
-});
+srFillForm();
 
 
 
@@ -2527,7 +2543,7 @@ async function syncLoad() {
   try {
     const r = await fetch(SYNC.url + '?t=' + Date.now());
     const remote = await r.json();
-    if (remote && (remote.v === 4 || remote.v === 5)) {
+    if (remote && (typeof remote.v === 'undefined' || remote.v >= 4)) {
       const merged = syncMerge(STATE, remote);
       STATE = merged;
       persistState();
@@ -2666,22 +2682,6 @@ window.addEventListener('load', () => {
     if (SYNC.url) syncLoad();
   }, 600);
 });
-
-// ═══════════════════════════════════════════════════════
-// BANCA WEIGHTS CONFIG — Dynamic priority engine
-// ═══════════════════════════════════════════════════════
-const BANCA_DEFAULTS = {amrigs:1.0, amp:1.0, sanar:1.0};
-let BANCA_CFG = {...BANCA_DEFAULTS};
-
-function bancaLoadCfg(){
-  try{
-    const r=localStorage.getItem('qg_banca_cfg');
-    if(r){ const p=JSON.parse(r); BANCA_CFG={...BANCA_DEFAULTS,...p}; }
-  }catch(e){}
-}
-function bancaSaveCfg(){
-  try{ localStorage.setItem('qg_banca_cfg', JSON.stringify(BANCA_CFG)); }catch(e){}
-}
 
 function cfgBancaApply(){
   // Read slider values and normalize to weights (not percentages)
@@ -2851,8 +2851,7 @@ function renderConfig(){
   }
 }
 
-// Load on boot
-bancaLoadCfg();
+// Load on boot (moved to init sequence above)
 // ── Toast notification (non-intrusive feedback) ──────────────────────
 function _showToast(msg, duration=2200){
   let t=document.getElementById('_toast');
