@@ -687,9 +687,6 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 <script>
 (function(){
   try{
-    const SYNC_URL='https://script.google.com/macros/s/AKfycbwRKawUsQBKnAA57HHdfbBm2DfjlytX-kA2ZU3GNoUNQsXFrcoMCA5YrYAXHgnvY318bg/exec';
-    if(!localStorage.getItem('qg_sync_url'))
-      localStorage.setItem('qg_sync_url', SYNC_URL);
     // Load embedded state if localStorage is empty, wrong version, or has 0 sessions
     const raw = localStorage.getItem('qg_v5') || localStorage.getItem('qg_v4');
     let needLoad = !raw;
@@ -999,7 +996,11 @@ function computeTopic(base){
 // ═══════════════════════════════════════════════════════
 let _cache=null, _cacheKey='';
 function computeAll(){
-  const key=STATE.sessions.length+':'+(STATE.sessions[STATE.sessions.length-1]?.id||'');
+  const key=STATE.sessions.length
+    +':'+(STATE.sessions[STATE.sessions.length-1]?.id||'')
+    +':'+STATE.sessions.reduce(function(s,x){return s+(x.q||0)+(x.a||0);},0)
+    +':'+JSON.stringify(STATE.schedulerParams||{})
+    +(typeof BANCA_CFG!=='undefined'?':'+BANCA_CFG.amrigs.toFixed(2)+BANCA_CFG.amp.toFixed(2):'');
   if(_cache&&_cacheKey===key) return _cache;
   _cache=PLANILHA.map(computeTopic);
   _cacheKey=key;
@@ -2453,7 +2454,7 @@ function copyAppsScript(){
 // Sem OAuth, sem hospedagem. Só uma URL de Web App.
 // ═══════════════════════════════════════════════════════
 const SYNC = {
-  url: localStorage.getItem('qg_sync_url') || 'https://script.google.com/macros/s/AKfycbwRKawUsQBKnAA57HHdfbBm2DfjlytX-kA2ZU3GNoUNQsXFrcoMCA5YrYAXHgnvY318bg/exec',
+  url: localStorage.getItem('qg_sync_url') || '',
   status: 'idle',   // idle | syncing | ok | error
   lastSync: localStorage.getItem('qg_last_sync') || '',
   dirty: false,     // unsaved local changes
@@ -2873,6 +2874,14 @@ computeTopic = function(base){
   );
   return {...result, inc: inc_weighted, priority: priority_w};
 };
+
+// Re-run scheduler now that BANCA_CFG is applied — cache built at startup
+// (lines above) used unpatched computeTopic; this pass uses weighted priorities.
+invalidateCache();
+recomputeScheduler();
+_lastValidation=validateScheduler();
+updateSidebar();
+renderHoje();
 
 </script>
 
