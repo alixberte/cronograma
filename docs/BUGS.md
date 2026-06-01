@@ -34,7 +34,11 @@ Aberto
 Necessário validar se Q2 e Q3 estão sendo gerados automaticamente.
 
 Status:
-Em análise
+Corrigido
+
+Correções:
+- `_autoMatchSessionToWeekPlan()` refatorado para aceitar `targetWkISO` e iterar todas as sessões da semana (antes matcheava apenas a última sessão registrada)
+- Capacidade do blockPool corrigida: Q3 tasks usam `_mQ3` em vez de `_mQ2`
 
 ---
 
@@ -43,7 +47,11 @@ Em análise
 Necessário validar se WeekHistory está realmente congelando semanas passadas.
 
 Status:
-Em análise
+Corrigido
+
+Correções:
+- `_archiveWeek()` chama `_autoMatchSessionToWeekPlan(wkISO)` antes de congelar (garante que sessões registradas sejam reconhecidas antes do snapshot)
+- `actualHours` calculado pela soma de `task.min` das tarefas concluídas (antes usava `sp.minRev` fixo para todos os tipos)
 
 ---
 

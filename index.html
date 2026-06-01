@@ -1085,7 +1085,7 @@ function recomputeScheduler(){
         tasks.push({type:blk.block+'_TASK',topicId:t.id,disc:t.disc,n:t.n,
           label:`${blk.overdue?'⚠ Atrasado':'📅 Bloco'} ${blk.block}: ${t.n}`,
           explain:`Gerado auto: ${blk.block} vence ${fmtD(blk.due)}${blk.overdue?' (ATRASADO)':''} · prioridade ${t.priority}`});
-        min+=_mQ2;
+        min+=(blk.block==='Q2'?_mQ2:_mQ3);
         blockPool.splice(i,1);
       } else { i++; }
       if(tasks.filter(t=>['Q2_TASK','Q3_TASK'].includes(t.type)).length>=3) break;
@@ -2155,16 +2155,15 @@ function fullRebuildScheduler(){
 // Cross-references last registered session with current
 // weekPlan tasks and marks matching tasks as completed.
 // ═══════════════════════════════════════════════════════
-function _autoMatchSessionToWeekPlan(){
+function _autoMatchSessionToWeekPlan(targetWkISO){
   if(!STATE.sessions.length) return;
-  var last = STATE.sessions[STATE.sessions.length-1];
-  // Find current week ISO
-  var curWkISO = null;
-  for(var i=0;i<WEEKS.length;i++){
-    if(WEEKS[i].isCurrent){ curWkISO=WEEKS[i].wkISO; break; }
+  var curWkISO = targetWkISO || null;
+  if(!curWkISO){
+    for(var i=0;i<WEEKS.length;i++){
+      if(WEEKS[i].isCurrent){ curWkISO=WEEKS[i].wkISO; break; }
+    }
   }
   if(!curWkISO){
-    // Derive from today — Monday of current week
     var d=new Date(TODAY); d.setDate(d.getDate()-((d.getDay()+6)%7));
     curWkISO=d.toISOString().split('T')[0];
   }
@@ -2172,19 +2171,23 @@ function _autoMatchSessionToWeekPlan(){
   if(!plan||!plan.length) return;
   if(!STATE.weekExecution[curWkISO]) STATE.weekExecution[curWkISO]={};
   var exec=STATE.weekExecution[curWkISO];
-
+  var wkEnd=addDays(curWkISO,6);
+  // Match ALL sessions in the target week, not just the last one
+  var wkSessions=STATE.sessions.filter(function(s){ return s.data>=curWkISO&&s.data<=wkEnd; });
   plan.forEach(function(task){
-    if(task.n!==last.n) return;
     var k=task.uid||String(task.idx||0);
-    // Type matching rules
-    var ok=false;
-    if(task.type==='SPACED_REV'&&['SPACED_REV','THEORY_REV','QUICK_REV','ERROR_REV','FINAL_REV'].includes(last.tipo)) ok=true;
-    if(task.type==='NEW'&&['Q1_DONE','CONTENT_SEEN'].includes(last.tipo)) ok=true;
-    if(task.type==='Q1_TASK'&&last.tipo==='Q1_DONE') ok=true;
-    if(task.type==='Q2_TASK'&&last.tipo==='Q2_DONE') ok=true;
-    if(task.type==='Q3_TASK'&&last.tipo==='Q3_DONE') ok=true;
-    if(ok&&!(exec[k]&&exec[k].completed)){
-      exec[k]={completed:true,completed_at:Date.now(),source:'auto_match'};
+    if(exec[k]&&exec[k].completed) return;
+    var matched=wkSessions.find(function(s){
+      if(s.n!==task.n) return false;
+      if(task.type==='SPACED_REV'&&['SPACED_REV','THEORY_REV','QUICK_REV','ERROR_REV','FINAL_REV'].includes(s.tipo)) return true;
+      if(task.type==='NEW'&&['Q1_DONE','CONTENT_SEEN'].includes(s.tipo)) return true;
+      if(task.type==='Q1_TASK'&&s.tipo==='Q1_DONE') return true;
+      if(task.type==='Q2_TASK'&&s.tipo==='Q2_DONE') return true;
+      if(task.type==='Q3_TASK'&&s.tipo==='Q3_DONE') return true;
+      return false;
+    });
+    if(matched){
+      exec[k]={completed:true,completed_at:new Date(matched.data+'T12:00:00').getTime(),source:'auto_match'};
     }
   });
 }
@@ -2207,23 +2210,25 @@ function closeWeekIfNeeded(){
 }
 
 function _archiveWeek(wkISO){
+  // Ensure session→task matching is up-to-date before freezing
+  _autoMatchSessionToWeekPlan(wkISO);
   var plan=STATE.weekPlans[wkISO]||[];
   var exec=STATE.weekExecution[wkISO]||{};
   var done=[],pending=[];
+  var sp=SP();
   plan.forEach(function(t){
     var k=t.uid||String(t.idx||0);
     if(exec[k]&&exec[k].completed){
-      done.push({uid:k,label:t.label,type:t.type,disc:t.disc,n:t.n,completed_at:exec[k].completed_at});
+      done.push({uid:k,label:t.label,type:t.type,disc:t.disc,n:t.n,completed_at:exec[k].completed_at,min:t.min||sp.minRev});
     } else {
       pending.push({uid:k,label:t.label,type:t.type,disc:t.disc,n:t.n,topicId:t.topicId});
     }
   });
   var wkEnd=addDays(wkISO,6);
   var wkSess=STATE.sessions.filter(function(s){return s.data>=wkISO&&s.data<=wkEnd;});
-  var sp=SP();
   var actualQ  =wkSess.reduce(function(t,s){return t+(s.q||0);},0);
   var plannedH =Math.round(plan.reduce(function(t,tk){return t+(tk.min||sp.minRev);},0)/60*10)/10;
-  var actualH  =Math.round(done.length*(sp.minRev)/60*10)/10;
+  var actualH  =Math.round(done.reduce(function(t,tk){return t+(tk.min||sp.minRev);},0)/60*10)/10;
   var rate     =plan.length?Math.round(done.length/plan.length*100):0;
   var d1=new Date(wkISO+'T12:00:00'), d2=new Date(d1); d2.setDate(d1.getDate()+6);
   var lbl=d1.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})
