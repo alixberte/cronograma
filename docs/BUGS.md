@@ -7,7 +7,10 @@
 Revisões futuras nem sempre aparecem corretamente no cronograma.
 
 Status:
-Aberto
+Corrigido
+
+Correção:
+- Pool `upcomingRevs` expandido para incluir todas as revisões futuras (`revStatus !== 'late' && revStatus !== 'none'`). Antes, apenas revisões com `revStatus === 'week' || 'today'` (vencendo em ≤7 dias) entravam no scheduler — todas as revisões futuras eram ignoradas.
 
 ---
 
@@ -16,7 +19,11 @@ Aberto
 Ao excluir uma sessão, o assunto nem sempre retorna ao backlog.
 
 Status:
-Aberto
+Corrigido
+
+Correção:
+- `delSess()` agora remove entradas `source='auto_match'` em `weekExecution` para o tópico deletado antes de reconstruir o estado. Entradas marcadas manualmente (sem `source`) são preservadas.
+- Re-executa `_autoMatchSessionToWeekPlan()` para cada semana afetada após a remoção.
 
 ---
 
@@ -25,7 +32,10 @@ Aberto
 O cronograma nem sempre recompõe automaticamente semanas futuras após mudanças de estado.
 
 Status:
-Aberto
+Corrigido
+
+Correção:
+- `_archiveWeek()` agora deleta `STATE.weekPlans[wkISO]` e `STATE.weekExecution[wkISO]` após arquivar. Dados de semanas fechadas não acumulam no STATE nem interferem em recomputações futuras.
 
 ---
 

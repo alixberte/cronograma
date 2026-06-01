@@ -89,14 +89,24 @@ Corrigido:
 
 ---
 
+## v1.9
+
+Corrigido:
+
+- Scheduler: pool `upcomingRevs` expandido — revisões futuras além de 7 dias agora entram no cronograma nas semanas corretas (Bug #001)
+- `delSess()`: entradas `auto_match` em `weekExecution` são limpas ao excluir sessão e reavaliadas (Bug #002)
+- `doImportJSON()`: validação de schema adicionada antes de substituir STATE — verifica presença de `sessions` e versão compatível (v4/v5)
+- `doImportJSON()`: `alert()` substituído por toast + reload suave
+- `_archiveWeek()`: `weekPlans` e `weekExecution` da semana arquivada são purgados do STATE após criar weekHistory (Bug #003)
+
+---
+
 ## Próxima Versão
 
 Planejado:
 
-- Reconciliation Engine
 - Full Rebuild Scheduler
 - Melhorias de Backlog
-- Melhorias de Revisões Futuras
 
 ---
 

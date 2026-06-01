@@ -1046,7 +1046,7 @@ function recomputeScheduler(){
 
   // Pools (consumed as weeks are built)
   const overdueRevs   =[...all.filter(t=>t.revStatus==='late')].sort((a,b)=>b.priority-a.priority);
-  const upcomingRevs  =[...all.filter(t=>t.revStatus==='week'||t.revStatus==='today')].sort((a,b)=>b.priority-a.priority);
+  const upcomingRevs  =[...all.filter(t=>t.nextRev&&t.revStatus!=='late'&&t.revStatus!=='none')].sort((a,b)=>b.priority-a.priority);
   const blockPool     =[...all.filter(t=>t.pendingBlocks.length>0)].sort((a,b)=>b.priority-a.priority);
   const newPool       =[...all.filter(t=>t.stage==='CONTENT_SEEN'||t.stage==='NOT_STARTED')].sort((a,b)=>b.priority-a.priority);
 
@@ -2033,8 +2033,19 @@ function renderHist(){
 }
 function delSess(id){
   if(!confirm('Remover sessão?')) return;
-  STATE.sessions = STATE.sessions.filter(function(s){ return s.id!==id; });
-  // Invalidate auto-match for the deleted session
+  var sess=STATE.sessions.find(function(s){ return s.id===id; });
+  if(!sess) return;
+  STATE.sessions=STATE.sessions.filter(function(s){ return s.id!==id; });
+  // Remove auto-matched weekExecution entries for this topic then re-evaluate
+  Object.keys(STATE.weekExecution||{}).forEach(function(wkISO){
+    var ex=STATE.weekExecution[wkISO]||{};
+    (STATE.weekPlans[wkISO]||[]).forEach(function(task){
+      if(task.n!==sess.n) return;
+      var k=task.uid||String(task.idx||0);
+      if(ex[k]&&ex[k].source==='auto_match') delete ex[k];
+    });
+    _autoMatchSessionToWeekPlan(wkISO);
+  });
   afterSave();
   fullRebuildScheduler();
   renderHist();
@@ -2073,10 +2084,28 @@ function doExportJSON(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='qg_residencia_'+ISO_TODAY+'.json';a.click();
 }
+function _validateImport(data){
+  if(!data||typeof data!=='object') return 'não é um objeto JSON';
+  if(!Array.isArray(data.sessions)) return 'campo "sessions" ausente ou inválido';
+  if(data.v!==5&&data.v!==4) return 'versão incompatível: esperado v4 ou v5, encontrado v'+(data.v||'?');
+  return null;
+}
 function doImportJSON(){
-  const file=document.getElementById('io-file').files[0];if(!file)return;
-  const r=new FileReader();
-  r.onload=function(e){try{STATE=JSON.parse(e.target.result);migrateState();fullRebuildScheduler();persistState();alert('Importado! Reconstruindo...');location.reload();}catch(err){alert('Arquivo inválido.');}};
+  var file=document.getElementById('io-file').files[0]; if(!file) return;
+  var r=new FileReader();
+  r.onload=function(e){
+    try{
+      var data=JSON.parse(e.target.result);
+      var err=_validateImport(data);
+      if(err){ alert('Erro na importação: '+err+'.'); return; }
+      STATE=data;
+      migrateState();
+      fullRebuildScheduler();
+      persistState();
+      _showToast('✓ Importado — '+data.sessions.length+' sessões · Reconstruindo…',2500);
+      setTimeout(function(){ location.reload(); },2600);
+    }catch(ex){ alert('Arquivo inválido: '+ex.message); }
+  };
   r.readAsText(file);
 }
 function doExportXLSX(){
@@ -2241,7 +2270,9 @@ function _archiveWeek(wkISO){
     plannedQuestions:plan.length*15,actualQuestions:actualQ,
     sessionCount:wkSess.length,closedAt:Date.now()
   };
-  // Incomplete tasks return to backlog automatically via state-driven computeTopic()
+  // Purge processed data — weekHistory is the source of truth for closed weeks
+  delete STATE.weekPlans[wkISO];
+  if(STATE.weekExecution) delete STATE.weekExecution[wkISO];
 }
 
 function checkAndCloseWeeks(){
