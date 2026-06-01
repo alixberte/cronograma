@@ -52,11 +52,37 @@ Implementação:
 
 ---
 
+## v1.6
+
+Corrigido:
+
+- PLANILHA e DISC_WEIGHTS extraídos para `planilha.js` (script Python pode regenerar sem tocar no HTML)
+- `computeTopic()`: double-counting de q/a eliminado — usa exclusivamente STATE.sessions quando há sessões com questões
+- `validateScheduler()` conectado ao ciclo de vida: chamado no startup, em `fullRebuildScheduler()` e sob demanda
+- Painel "Diagnóstico do sistema" adicionado em Configurações
+
+Adicionado:
+
+- `_lastValidation[]` — variável global persiste resultado da validação entre chamadas
+
+---
+
+## v1.7
+
+Corrigido:
+
+- `_autoMatchSessionToWeekPlan()`: iterava apenas a última sessão registrada — agora itera todas as sessões da semana alvo
+- `_autoMatchSessionToWeekPlan()`: aceita `targetWkISO` opcional para matchear semanas passadas antes do fechamento
+- `_archiveWeek()`: chama `_autoMatchSessionToWeekPlan(wkISO)` antes de congelar o snapshot
+- `_archiveWeek()`: `actualHours` calculado pela soma real de `task.min` (antes usava `sp.minRev` fixo para todos os tipos)
+- Scheduler blockPool: Q3 tasks usam `_mQ3` para cálculo de capacidade (antes usava `_mQ2`)
+
+---
+
 ## Próxima Versão
 
 Planejado:
 
-- Validation Engine
 - Reconciliation Engine
 - Full Rebuild Scheduler
 - Melhorias de Backlog
