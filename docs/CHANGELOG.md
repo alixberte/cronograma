@@ -79,6 +79,16 @@ Corrigido:
 
 ---
 
+## v1.8
+
+Corrigido:
+
+- URL privada do Google Apps Script removida do código-fonte (estava exposta em 2 locais)
+- Cache key de `computeAll()` agora inclui schedulerParams e BANCA_CFG — invalida corretamente ao mudar pesos de banca ou intervalos SR
+- Startup executava `recomputeScheduler()` antes do monkey-patch BANCA_CFG, causando primeiro render com prioridades sem ponderação de banca — corrigido com re-render pós-patch
+
+---
+
 ## Próxima Versão
 
 Planejado:
