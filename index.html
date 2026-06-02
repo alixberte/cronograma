@@ -1881,7 +1881,7 @@ function renderCron(){
                 'flex-shrink:0;margin-left:2px">&#8593; Adiantar</button>'
               : '';
             return '<div class="wktask">'+
-              '<input type="checkbox"'+(isDone?' checked':'')+' onchange="toggleTask(''+w.wkISO+'',''+k+'',this)">'+
+              '<input type="checkbox"'+(isDone?' checked':'')+' onchange="toggleTask(\''+w.wkISO+'\',\''+k+'\',this)">'+
               '<div style="flex:1">'+
                 '<div class="wktl '+(isDone?'done':'')+'" id="stl-'+w.wkISO+'-'+k+'">'+t.label+'</div>'+
                 '<div style="font-size:9px;color:var(--t3);margin-top:1px">'+(t.explain||'')+'</div>'+
