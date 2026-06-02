@@ -2911,14 +2911,13 @@ computeTopic = function(base){
     (base.ap||0) * BANCA_CFG.amp    +
     (base.sa||0) * BANCA_CFG.sanar
   );
-  // Recompute priority with weighted inc
+  // Recompute priority com inc ponderado (urgency removido — incidência é fator dominante)
   const diffPenalty = result.pct!==null ? Math.max(0,100-result.pct) : 55;
   const stageW = {NOT_STARTED:0,CONTENT_SEEN:8,Q1_DONE:20,Q2_DONE:30,Q3_DONE:0}[result.stage]||0;
-  const urgency = result.revStatus==='late'?60:result.revStatus==='today'?40:result.revStatus==='week'?20:0;
-  const blockUrg = result.pendingBlocks.some(b=>b.overdue)?35:result.pendingBlocks.length?12:0;
+  const blockUrg = result.pendingBlocks.some(b=>b.overdue)?15:result.pendingBlocks.length?6:0;
   const proxMult = 1+Math.max(0,Math.min((1-DIAS_PROVA/540),0.5));
   const priority_w = Math.round(
-    (inc_weighted*2.5 + diffPenalty*0.4 + stageW + urgency + blockUrg + result.discWeight*50) * proxMult
+    (inc_weighted*3.5 + diffPenalty*0.4 + stageW + blockUrg + result.discWeight*50) * proxMult
   );
   return {...result, inc: inc_weighted, priority: priority_w};
 };
