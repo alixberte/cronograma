@@ -983,10 +983,10 @@ function computeTopic(base){
   const discWeight=discTotal/1856;
   const stageW={NOT_STARTED:0,CONTENT_SEEN:8,Q1_DONE:20,Q2_DONE:30,Q3_DONE:0}[stage]||0;
   const diffPenalty=pct!==null?Math.max(0,100-pct):55;
-  const urgency=revStatus==='late'?60:revStatus==='today'?40:revStatus==='week'?20:0;
-  const blockUrg=pendingBlocks.some(b=>b.overdue)?35:pendingBlocks.length?12:0;
+  // urgency removido: atraso não influencia prioridade (incidência é o fator dominante)
+  const blockUrg=pendingBlocks.some(b=>b.overdue)?15:pendingBlocks.length?6:0;
   const proxMult=1+clamp((1-DIAS_PROVA/540),0,0.5);
-  const priority=Math.round((inc*2.5+diffPenalty*0.4+stageW+urgency+blockUrg+discWeight*50)*proxMult);
+  const priority=Math.round((inc*3.5+diffPenalty*0.4+stageW+blockUrg+discWeight*50)*proxMult);
 
   return {...base,r1,r2,r3,q,a,pct,stage,extStage,nextRev,revInterval,revStatus,pendingBlocks,priority,inc,discWeight};
 }
@@ -1113,11 +1113,18 @@ function recomputeScheduler(){
         const used=discsUsed[t.disc]||0;
         const target=Math.ceil((discW[t.disc]||0.2)*4); // proportional slot
         if(used<target){
-          const act=t.stage==='CONTENT_SEEN'?'Questões Q1':'Novo conteúdo';
-          tasks.push({type:'NEW',topicId:t.id,disc:t.disc,n:t.n,
-            label:`${act}: ${t.n} (${t.disc})`,
-            explain:`Prioridade ${t.priority} · incidência ${t.inc} · peso ${t.disc} ${((discW[t.disc]||0)*100).toFixed(1)}% · ${STAGE_LABEL[t.stage]}`});
-          min+=_mNew;  // conteúdo novo = 50min teoria + 30min Q1
+          // Conteúdo novo (só se ainda não fez CONTENT_SEEN)
+          if(t.stage!=='CONTENT_SEEN'){
+            tasks.push({type:'NEW',topicId:t.id,disc:t.disc,n:t.n,
+              label:`Novo conteúdo: ${t.n} (${t.disc})`,
+              explain:`Prioridade ${t.priority} · incidência ${t.inc} · peso ${t.disc} ${((discW[t.disc]||0)*100).toFixed(1)}% · ${STAGE_LABEL[t.stage]}`});
+            min+=sp.minNew;
+          }
+          // Q1 sempre gerado na mesma semana do conteúdo novo
+          tasks.push({type:'Q1_TASK',topicId:t.id,disc:t.disc,n:t.n,
+            label:`Bloco Q1: ${t.n} (${t.disc})`,
+            explain:`Q1 na mesma semana · incidência ${t.inc} · prioridade ${t.priority}`});
+          min+=sp.minQ1;
           discsUsed[t.disc]=(discsUsed[t.disc]||0)+1;
           newPool.splice(i,1);
           newCount++;
@@ -1261,7 +1268,11 @@ function _refreshHojeMetricsOnly(){
 // Refresh cron metrics row only
 function _refreshCronMetricsOnly(){
   const all=computeAll();
-  const totalT=WEEKS.reduce((t,w)=>t+w.tasks.length,0);
+  // Para a semana atual, usar weekPlans como referência de total
+  const totalT=WEEKS.reduce((t,w)=>{
+    var ref=(w.isCurrent&&STATE.weekPlans[w.wkISO])?STATE.weekPlans[w.wkISO]:w.tasks;
+    return t+ref.length;
+  },0);
   const doneT=WEEKS.reduce(function(total,w){
     var ex=STATE.weekExecution[w.wkISO]||{};
     return total+Object.values(ex).filter(function(v){return v&&v.completed;}).length;
@@ -1286,6 +1297,11 @@ function doSave(){
   STATE.sessions.push({id:'u'+Date.now(),data,n,disc,tipo,q,a,obs});
   if(!STATE.heatmap[data]) STATE.heatmap[data]=0;
   STATE.heatmap[data]++;
+  // Auto-criar sessão de Q1 quando conteúdo novo é registrado (regra pedagógica)
+  if(tipo==='CONTENT_SEEN'){
+    STATE.sessions.push({id:'u'+(Date.now()+1),data,n,disc,tipo:'Q1_DONE',q:0,a:0,obs:'(Q1 gerado automaticamente — registre acertos/erros depois)'});
+    STATE.heatmap[data]++;
+  }
   afterSave(); closeModal('m-reg');
   ['mr-n','mr-q','mr-a','mr-obs'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('mr-mac').style.display='none';
@@ -1792,15 +1808,17 @@ function renderCron(){
     {l:'Semanas geradas',v:WEEKS.length,s:'auto-derivadas'},
   ].map(m=>`<div class="mc"><div class="ml">${m.l}</div><div class="mv" style="${m.c||''};${String(m.v).length>10?'font-size:12px':''}">${m.v}</div><div class="ms">${m.s}</div></div>`).join('');
   const ct=document.getElementById('cr-cont');ct.innerHTML='';
-  const TL={NEW:'NOVO',SPACED_REV:'REV',Q2_TASK:'Q2',Q3_TASK:'Q3'};
-  const TC={NEW:'tp-novo',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
+  const TL={NEW:'NOVO',Q1_TASK:'Q1',SPACED_REV:'REV',Q2_TASK:'Q2',Q3_TASK:'Q3'};
+  const TC={NEW:'tp-novo',Q1_TASK:'tp-q2',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
   WEEKS.filter(w=>{
     if(!mes) return true;
     return new Date(w.wkISO+'T12:00:00').toLocaleDateString('pt-BR',{month:'long'}).toLowerCase().includes(mes);
   }).forEach((w,wi)=>{
     var checks=STATE.weekExecution[w.wkISO]||{}; // raw for future weeks
-    var done=Object.values(checks).filter(function(v){return v&&v.completed;}).length;
-    const p=w.tasks.length?safe_pct(done,w.tasks.length):0;
+    // Semana atual: usar weekPlans como referência (consistente com Esta Semana)
+    var refTasks = (w.isCurrent && STATE.weekPlans[w.wkISO]) ? STATE.weekPlans[w.wkISO] : w.tasks;
+    var done = refTasks.filter(function(t){ var k=t.uid||String(t.idx||0); return checks[k]&&checks[k].completed; }).length;
+    const p=refTasks.length?safe_pct(done,refTasks.length):0;
     const el=document.createElement('div');
     el.className='wkb'+(w.isCurrent?' cur':'');
     el.innerHTML=`
