@@ -1499,12 +1499,36 @@ function renderSemana(){
       return Object.assign({},t,{
         uid: t.uid || (curWk.wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i)),
         idx: i,
-        min: t.min || (t.type==='NEW'?90:35)
+        min: t.min || (t.type==='NEW'?SP().minNew:t.type==='Q1_TASK'?SP().minQ1:t.type==='Q2_TASK'?SP().minQ2:t.type==='Q3_TASK'?SP().minQ3:SP().minRev)
       });
     });
     persistState();
   }
 
+  // MIGRATION: inject Q1_TASK into frozen plans that were created before the Q1_TASK fix
+  var planToCheck = STATE.weekPlans[curWk.wkISO] || [];
+  if(planToCheck.length){
+    var planTopicsWithNew = planToCheck.filter(function(t){return t.type==='NEW';}).map(function(t){return t.topicId||t.n;});
+    planTopicsWithNew.forEach(function(tid){
+      var hasQ1 = planToCheck.some(function(t){return t.type==='Q1_TASK'&&(t.topicId||t.n)===tid;});
+      if(!hasQ1){
+        var newTask = planToCheck.find(function(t){return t.type==='NEW'&&(t.topicId||t.n)===tid;});
+        if(newTask){
+          var sp0=SP();
+          var q1Task = Object.assign({},newTask,{
+            type:'Q1_TASK',
+            uid: newTask.uid+'_q1',
+            idx: STATE.weekPlans[curWk.wkISO].length,
+            min: sp0.minQ1,
+            label: 'Bloco Q1: '+(newTask.n||tid),
+            explain: 'Q1 na mesma semana · migrado automaticamente'
+          });
+          STATE.weekPlans[curWk.wkISO].push(q1Task);
+        }
+      }
+    });
+    persistState();
+  }
   // SOURCE OF TRUTH: weekPlans + weekExecution
   var plan = STATE.weekPlans[curWk.wkISO];
   var exec = STATE.weekExecution[curWk.wkISO] || {};
@@ -1512,7 +1536,8 @@ function renderSemana(){
   var pct  = plan.length ? Math.round(done/plan.length*100) : 0;
   var pctColor = pct>=80?'var(--grn)':pct>=50?'var(--amb)':'var(--t)';
 
-  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+Math.round(curWk.min/60*10)/10+'h';
+  var planMinTotal = plan.reduce(function(t,tk){return t+(tk.min||SP().minRev);},0);
+  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+Math.round(planMinTotal/60*10)/10+'h';
 
   // HERO
   var progStrip = plan.map(function(t){
@@ -1537,8 +1562,8 @@ function renderSemana(){
   _renderSemStats(curWk.wkISO);
 
   // TASK LIST
-  var TL = {NEW:'NOVO',SPACED_REV:'REVISÃO',Q2_TASK:'Q2',Q3_TASK:'Q3'};
-  var TC = {NEW:'tp-novo',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
+  var TL = {NEW:'NOVO',Q1_TASK:'Q1',SPACED_REV:'REVISÃO',Q2_TASK:'Q2',Q3_TASK:'Q3'};
+  var TC = {NEW:'tp-novo',Q1_TASK:'tp-q2',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
 
   document.getElementById('sem-tasks').innerHTML = plan.map(function(t){
     var k      = t.uid || String(t.idx);
@@ -1688,7 +1713,8 @@ function _renderSemStats(wkISO){
     .filter(t => exec[t.uid||String(t.idx)]?.completed)
     .reduce((s,t) => s+(t.min||35), 0);
   const hDone = Math.round(minDone/60*10)/10;
-  const hPlanned = curWk ? Math.round(curWk.min/60*10)/10 : '—';
+  const sp2 = SP();
+  const hPlanned = plan.length ? Math.round(plan.reduce(function(t,tk){return t+(tk.min||sp2.minRev);},0)/60*10)/10 : '—';
 
   // Pct color
   const pctColor = pct>=80?'var(--grn)':pct>=50?'var(--amb)':'var(--t)';
@@ -1825,7 +1851,7 @@ function renderCron(){
       <div class="wkh" onclick="toggleWk('wb-${wi}','wa-${wi}')">
         <div class="wkh-l">
           <div class="row"><span class="wkn">${w.label}${w.isCurrent?' · <span style=\\"font-weight:700;color:var(--t)\\">← ATUAL</span>':''}</span></div>
-          <div class="wkm">${w.foco} · ${done}/${w.tasks.length} feitas · ${Math.round(w.min/60*10)/10}h</div>
+          <div class="wkm">${w.foco} · ${done}/${refTasks.length} feitas · ${Math.round(w.min/60*10)/10}h</div>
         </div>
         <div style="display:flex;align-items:center;gap:7px">
           <div style="width:48px;height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
@@ -1847,13 +1873,21 @@ function renderCron(){
             var isDone = w.isCurrent
               ? !!(wkExec[k]&&wkExec[k].completed)
               : !!(checks[k]||checks[i]);
+            var advBtn = (!w.isCurrent && !w.isPast)
+              ? '<button onclick="advanceTask(\''+w.wkISO+'\',' +
+                '\''+k+'\')" title="Adiantar para semana atual" ' +
+                'style="font-size:9px;padding:1px 5px;border:1px solid var(--b);' +
+                'border-radius:3px;background:var(--s2);color:var(--t3);cursor:pointer;' +
+                'flex-shrink:0;margin-left:2px">&#8593; Adiantar</button>'
+              : '';
             return '<div class="wktask">'+
-              '<input type="checkbox"'+(isDone?' checked':'')+' onchange="toggleTask(\''+w.wkISO+'\',\''+k+'\',this)">'+
+              '<input type="checkbox"'+(isDone?' checked':'')+' onchange="toggleTask(''+w.wkISO+'',''+k+'',this)">'+
               '<div style="flex:1">'+
                 '<div class="wktl '+(isDone?'done':'')+'" id="stl-'+w.wkISO+'-'+k+'">'+t.label+'</div>'+
                 '<div style="font-size:9px;color:var(--t3);margin-top:1px">'+(t.explain||'')+'</div>'+
               '</div>'+
               '<span class="tp '+(TC[t.type]||'tp-q')+'" style="flex-shrink:0">'+(TL[t.type]||t.type)+'</span>'+
+              advBtn+
               '</div>';
           }).join('');
         })()}
@@ -1888,6 +1922,49 @@ function toggleWk(bid,aid){
   if(!b)return;
   const open=b.classList.toggle('open');
   if(a)a.style.transform=open?'rotate(90deg)':'rotate(0)';
+}
+
+// Advance a future-week task to the current week plan, mark done, recalculate
+function advanceTask(srcWkISO, taskKey){
+  var srcWk = WEEKS.find(function(w){ return w.wkISO===srcWkISO; });
+  if(!srcWk || srcWk.isCurrent) return;
+  var srcTask = srcWk.tasks.find(function(t,i){ return (t.uid||String(i))===taskKey; });
+  if(!srcTask) return;
+  var curWk = WEEKS.find(function(w){ return w.isCurrent; });
+  if(!curWk) return;
+  var curWkISO = curWk.wkISO;
+  if(!STATE.weekPlans[curWkISO]){
+    STATE.weekPlans[curWkISO] = curWk.tasks.map(function(t,i){
+      return Object.assign({},t,{
+        uid: t.uid||(curWkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i)),
+        idx: i,
+        min: t.min||(t.type==='NEW'?SP().minNew:t.type==='Q1_TASK'?SP().minQ1:t.type==='Q2_TASK'?SP().minQ2:t.type==='Q3_TASK'?SP().minQ3:SP().minRev)
+      });
+    });
+  }
+  var sp = SP();
+  var newMin = srcTask.type==='NEW'?sp.minNew:srcTask.type==='Q1_TASK'?sp.minQ1:srcTask.type==='Q2_TASK'?sp.minQ2:srcTask.type==='Q3_TASK'?sp.minQ3:sp.minRev;
+  var advancedTask = Object.assign({}, srcTask, {
+    uid: curWkISO+'_ADV_'+(srcTask.type||'x')+'_'+(srcTask.topicId||srcTask.n||taskKey),
+    idx: STATE.weekPlans[curWkISO].length,
+    min: newMin,
+    label: '↑ ' + (srcTask.label||srcTask.n),
+    explain: (srcTask.explain||'') + ' · Adiantado de '+srcWkISO
+  });
+  STATE.weekPlans[curWkISO].push(advancedTask);
+  if(!STATE.weekExecution[curWkISO]) STATE.weekExecution[curWkISO]={};
+  STATE.weekExecution[curWkISO][advancedTask.uid] = {completed:true,completed_at:Date.now(),source:'advanced'};
+  var sDate = ISO_TODAY;
+  var sTipo = srcTask.type==='NEW'?'CONTENT_SEEN':srcTask.type==='Q1_TASK'?'Q1_DONE':srcTask.type==='Q2_TASK'?'Q2_DONE':srcTask.type==='Q3_TASK'?'Q3_DONE':'SPACED_REV';
+  STATE.sessions.push({id:'adv'+Date.now(),data:sDate,n:srcTask.n,disc:srcTask.disc,tipo:sTipo,q:0,a:0,obs:'(Adiantado de '+srcWkISO+')'});
+  if(!STATE.heatmap[sDate]) STATE.heatmap[sDate]=0;
+  STATE.heatmap[sDate]++;
+  persistState();
+  invalidateCache();
+  SYNC.dirty = true;
+  recomputeScheduler();
+  _showToast('↑ Tarefa adiantada para esta semana');
+  renderCron();
 }
 function toggleAllW(open){
   for(let i=0;i<WEEKS.length;i++){
