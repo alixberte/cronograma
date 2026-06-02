@@ -1851,7 +1851,7 @@ function renderCron(){
       <div class="wkh" onclick="toggleWk('wb-${wi}','wa-${wi}')">
         <div class="wkh-l">
           <div class="row"><span class="wkn">${w.label}${w.isCurrent?' · <span style=\\"font-weight:700;color:var(--t)\\">← ATUAL</span>':''}</span></div>
-          <div class="wkm">${w.foco} · ${done}/${refTasks.length} feitas · ${Math.round(w.min/60*10)/10}h</div>
+          <div class="wkm">${w.foco} · ${done}/${refTasks.length} feitas · ${(()=>{var sp3=SP();var refH=(w.isCurrent&&STATE.weekPlans[w.wkISO])?Math.round(STATE.weekPlans[w.wkISO].reduce(function(t,tk){return t+(tk.min||sp3.minRev);},0)/60*10)/10:Math.round(w.min/60*10)/10;return refH;})()}h</div>
         </div>
         <div style="display:flex;align-items:center;gap:7px">
           <div style="width:48px;height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
