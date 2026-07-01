@@ -638,7 +638,6 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
       <button class="btn" onclick="cfgBancaPreset('amrigs')">Só AMRIGS</button>
       <button class="btn" onclick="cfgBancaPreset('amp')">Só AMP</button>
       <button class="btn" onclick="cfgBancaPreset('equal')">Igualitário</button>
-      <button class="btn" onclick="cfgBancaPreset('sanar')">Focar SANAR</button>
       <button class="btn" onclick="cfgBancaReset()">Restaurar padrão</button>
     </div>
   </div>
@@ -1040,6 +1039,24 @@ function persistState(){
     localStorage.removeItem('qg_v4'); // clean up old key
   }catch(e){}
 }
+// ── Planilha version migration ──────────────────────────────────────
+// When planilha.js changes (new version), clear sessions to avoid
+// double-counting progress (new planilha already has progress embedded)
+(function migratePlanilha(){
+  const PLANILHA_VERSION = '2026-07-01-v2';
+  const storedVer = localStorage.getItem('qg_planilha_ver');
+  if(storedVer !== PLANILHA_VERSION){
+    try{
+      const st = JSON.parse(localStorage.getItem('qg_v5')||'{}');
+      if(st.sessions && st.sessions.length > 0){
+        st.sessions = [];
+        localStorage.setItem('qg_v5', JSON.stringify(st));
+      }
+    }catch(e){}
+    localStorage.setItem('qg_planilha_ver', PLANILHA_VERSION);
+  }
+})();
+
 loadState();
 
 // ═══════════════════════════════════════════════════════
@@ -1116,7 +1133,7 @@ function computeTopic(base){
   }
 
   // PRIORITY SCORE
-  const inc=(base.am||0)+(base.ap||0)+(base.sa||0);
+  const inc=(base.am||0)+(base.ap||0); // SANAR removido
   const dw=DISC_WEIGHTS.by_disc[base.disc];
   const discTotal=dw?dw.total:100;
   const discWeight=discTotal/1856;
@@ -1521,7 +1538,7 @@ function openTopicModal(t){
       ${pipe.map((p,i)=>`<span class="pstep ${i<ci?'done-s':i===ci?'active':''}">${STAGE_LABEL[p]||p}</span>${i<pipe.length-1?'<span class="parr">›</span>':''}`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:7px;margin-bottom:11px">
-      ${[['AMRIGS',t.am],['AMP',t.ap],['SANAR',t.sa],['Score',t.inc]].map(([l,v])=>`
+      ${[['AMRIGS',t.am],['AMP',t.ap],['Score',t.inc]].map(([l,v])=>`
       <div style="background:var(--s2);border-radius:var(--r);padding:7px 9px">
         <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${l}</div>
         <div style="font-size:17px;font-weight:300">${v||0}</div>
@@ -1544,6 +1561,7 @@ function openTopicModal(t){
     ${t.nextRev?`<div class="alert ${t.revStatus==='late'?'a-red':t.revStatus==='today'?'a-amb':'a-blu'} mb8">
       <strong>Próxima revisão espaçada:</strong> ${fmtD(t.nextRev)} · ${t.revInterval}d (SM-2: ${t.pct}%)
     </div>`:''}
+    ${t.obs?'<div style="margin-bottom:10px;padding:8px 10px;background:var(--s2);border-radius:var(--r1);border-left:3px solid var(--teal)"><div style="font-size:10px;color:var(--t3);margin-bottom:3px">📝 Observação</div><div style="font-size:12px;color:var(--t1)">${t.obs}</div></div>':''}
     <div style="font-size:10px;color:var(--t3);margin-bottom:2px">Próxima ação</div>
     <div style="font-size:12.5px;font-weight:500;margin-bottom:3px">${getActionLabel(t)}</div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:10px">${getExpl(t)}</div>
@@ -2375,7 +2393,7 @@ function doExportXLSX(){
     STATE.sessions.map(s=>({Data:s.data,Assunto:s.n,Área:s.disc,Tipo:s.tipo,Questões:s.q,Acertos:s.a,'%':s.q?safe_pct(s.a,s.q):0,Obs:s.obs}))),'Sessões');
   ['CLM','CLC','GO','PED','PREVENTIVA'].forEach(d=>{
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(
-      all.filter(t=>t.disc===d).map(t=>({Tópico:t.topico,Assunto:t.n,AMRIGS:t.am,AMP:t.ap,SANAR:t.sa,Score:t.inc,Stage:STAGE_LABEL[t.extStage]||t.extStage,Q:t.q,'Acerto%':t.pct||0,r1:t.r1||'',r2:t.r2||'',r3:t.r3||'',PróxRev:t.nextRev||'',Intervalo:t.revInterval||'',Prioridade:t.priority}))),d);
+      all.filter(t=>t.disc===d).map(t=>({Tópico:t.topico,Assunto:t.n,AMRIGS:t.am,AMP:t.ap,Score:t.inc,Stage:STAGE_LABEL[t.extStage]||t.extStage,Q:t.q,'Acerto%':t.pct||0,r1:t.r1||'',r2:t.r2||'',r3:t.r3||'',PróxRev:t.nextRev||'',Intervalo:t.revInterval||'',Prioridade:t.priority}))),d);
   });
   if(STATE.simulados.length) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(STATE.simulados),'Simulados');
   XLSX.writeFile(wb,'qg_residencia_'+ISO_TODAY+'.xlsx');
@@ -2697,7 +2715,7 @@ function renderHistSemanal(){
 // ═══════════════════════════════════════════════════════
 // BANCA WEIGHTS CONFIG — Dynamic priority engine
 // ═══════════════════════════════════════════════════════
-const BANCA_DEFAULTS = {amrigs:1.0, amp:1.0, sanar:1.0};
+const BANCA_DEFAULTS = {amrigs:1.0, amp:1.0};
 let BANCA_CFG = {...BANCA_DEFAULTS};
 
 function bancaLoadCfg(){
@@ -2945,7 +2963,7 @@ window.addEventListener('load', () => {
 
 function cfgBancaApply(){
   // Read slider values and normalize to weights (not percentages)
-  const keys = ['amrigs','amp','sanar'];
+  const keys = ['amrigs','amp'];
   const raw = {};
   let totalPct = 0;
   keys.forEach(k=>{
@@ -2969,12 +2987,11 @@ function cfgBancaApply(){
 }
 
 function cfgBancaPreset(mode){
-  const inputs = {amrigs:0, amp:0, sanar:0};
+  const inputs = {amrigs:0, amp:0}
   if(mode==='amrigs'){ inputs.amrigs=100; }
   else if(mode==='amp'){ inputs.amp=100; }
-  else if(mode==='equal'){ inputs.amrigs=34; inputs.amp=33; inputs.sanar=33; }
-  else if(mode==='sanar'){ inputs.sanar=70; inputs.amp=20; inputs.amrigs=10; }
-  ['amrigs','amp','sanar'].forEach(k=>{
+  else if(mode==='equal'){ inputs.amrigs=50; inputs.amp=50; }
+  ['amrigs','amp'].forEach(k=>{
     const el=document.getElementById('banca-'+k);
     const sv=document.getElementById('banca-slide-'+k);
     if(el){ el.value=inputs[k]; }
@@ -2992,7 +3009,7 @@ function cfgBancaReset(){
 }
 
 function cfgUpdateTotal(){
-  const keys=['amrigs','amp','sanar'];
+  const keys=['amrigs','amp'];
   let total=0;
   keys.forEach(k=>{
     const el=document.getElementById('banca-'+k);
@@ -3018,14 +3035,12 @@ function cfgRenderBancaSliders(){
   const bancas = [
     {k:'amrigs', label:'AMRIGS', color:'var(--blue)', desc:'Provas AMRIGS históricas'},
     {k:'amp',    label:'AMP',    color:'var(--teal)', desc:'Provas AMP históricas'},
-    {k:'sanar',  label:'SANAR',  color:'var(--pur)',  desc:'Banco de questões SANAR'},
   ];
   // Current % from BANCA_CFG (normalize back to %)
-  const total = BANCA_CFG.amrigs + BANCA_CFG.amp + BANCA_CFG.sanar;
+  const total = BANCA_CFG.amrigs + BANCA_CFG.amp;
   const pcts = {
     amrigs: total>0 ? safe_pct(BANCA_CFG.amrigs,total) : 34,
     amp:    total>0 ? safe_pct(BANCA_CFG.amp,total)    : 33,
-    sanar:  total>0 ? safe_pct(BANCA_CFG.sanar,total)  : 33,
   };
 
   const ct = document.getElementById('cfg-banca-sliders');
@@ -3152,9 +3167,8 @@ computeTopic = function(base){
   // Recompute inc with banca weights
   const inc_weighted = Math.round(
     (base.am||0) * BANCA_CFG.amrigs +
-    (base.ap||0) * BANCA_CFG.amp    +
-    (base.sa||0) * BANCA_CFG.sanar
-  );
+    (base.ap||0) * BANCA_CFG.amp
+  ); // SANAR removido
   // Recompute priority com inc ponderado (urgency removido — incidência é fator dominante)
   const diffPenalty = result.pct!==null ? Math.max(0,100-result.pct) : 55;
   const stageW = {NOT_STARTED:0,CONTENT_SEEN:8,Q1_DONE:20,Q2_DONE:30,Q3_DONE:0}[result.stage]||0;
