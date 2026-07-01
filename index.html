@@ -561,7 +561,26 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   <div class="mb14">
     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Configurações do sistema</div>
 
-  <!-- SECTION: Scheduler Params -->
+  <!-- SECTION: Data Final da Prova -->
+  <div class="card mb14">
+    <div class="ch"><div class="ctt">📅 Data final do cronograma (prova)</div></div>
+    <div class="alert a-blu mb12" style="font-size:11px">
+      Define até quando o cronograma deve ser planejado. Alterar e clicar <strong>Salvar</strong> recalcula o número de semanas automaticamente.
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <label style="font-size:11px;display:block;margin-bottom:4px;color:var(--t2)">Data da prova</label>
+        <input type="date" id="cfg-exam-date" style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--r1);background:var(--s);color:var(--t1);font-size:13px" oninput="examDatePreview()">
+      </div>
+      <div id="cfg-exam-weeks-preview" style="font-size:12px;color:var(--t2);margin-top:18px"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-k" onclick="examDateApply()">✅ Salvar e recalcular</button>
+      <button class="btn" onclick="examDateReset()">Usar padrão (26 semanas)</button>
+    </div>
+  </div>
+
+    <!-- SECTION: Scheduler Params -->
   <div class="card mb14">
     <div class="ch"><div class="ctt">⏱ Parâmetros de tempo do scheduler</div></div>
     <div class="alert a-blu mb12" style="font-size:11px">
@@ -624,7 +643,22 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
     </div>
   </div>
 
-  <!-- SECTION: SR -->
+  <!-- SECTION: Proporção por Área -->
+  <div class="card mb14">
+    <div class="ch"><div class="ctt">📊 Proporção de estudo por grande área</div><span class="chip cdk" id="cfg-disc-total">100%</span></div>
+    <div class="alert a-blu mb12" style="font-size:11px">
+      Controla quanto de cada grande área será incluído por semana no cronograma. <strong>Total deve somar 100%.</strong>
+      Se usar o botão de reset, volta à proporção calculada automaticamente pela incidência nas bancas.
+    </div>
+    <div id="cfg-disc-sliders" style="display:grid;gap:10px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-k" onclick="discCfgApply()">✅ Salvar e aplicar</button>
+      <button class="btn" onclick="discCfgPreset('bancas')">Usar incidência das bancas</button>
+      <button class="btn" onclick="discCfgPreset('equal')">Igualitário (20% cada)</button>
+    </div>
+  </div>
+
+    <!-- SECTION: SR -->
   <div class="card mb14">
     <div class="ch"><div class="ctt">⏱ Revisão espaçada — intervalos por acerto</div></div>
     <div class="alert a-blu mb12" style="font-size:11px">
@@ -703,6 +737,111 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 })();
 
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// EXAM DATE CONFIG — Data final do cronograma
+// ═══════════════════════════════════════════════════════
+function examDateLoad(){
+  try{
+    const s=JSON.parse(localStorage.getItem('qg_exam_date')||'null');
+    const el=document.getElementById('cfg-exam-date');
+    if(el && s && s.date) el.value=s.date;
+    examDatePreview();
+  }catch(e){}
+}
+function examDatePreview(){
+  const el=document.getElementById('cfg-exam-date');
+  const prev=document.getElementById('cfg-exam-weeks-preview');
+  if(!el||!prev) return;
+  const v=el.value;
+  if(!v){ prev.textContent=''; return; }
+  const ms=new Date(v).getTime()-new Date(TODAY).getTime();
+  const weeks=Math.ceil(ms/(7*24*3600*1000));
+  if(weeks<=0){ prev.innerHTML='<span style="color:var(--red)">⚠ Data já passou!</span>'; return; }
+  prev.textContent=weeks+' semanas até a prova';
+}
+function examDateApply(){
+  const el=document.getElementById('cfg-exam-date');
+  if(!el||!el.value){ alert('Selecione uma data primeiro.'); return; }
+  const ms=new Date(el.value).getTime()-new Date(TODAY).getTime();
+  const weeks=Math.ceil(ms/(7*24*3600*1000));
+  if(weeks<=0){ alert('A data selecionada já passou!'); return; }
+  try{ localStorage.setItem('qg_exam_date', JSON.stringify({date:el.value})); }catch(e){}
+  invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
+  _showToast('Data da prova salva! Cronograma recalculado para '+weeks+' semanas.');
+}
+function examDateReset(){
+  try{ localStorage.removeItem('qg_exam_date'); }catch(e){}
+  const el=document.getElementById('cfg-exam-date');
+  if(el) el.value='';
+  examDatePreview();
+  invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
+  _showToast('Data removida. Cronograma usando padrão de 26 semanas.');
+}
+
+// ═══════════════════════════════════════════════════════
+// DISC WEIGHTS CONFIG — Proporção de estudo por grande área
+// ═══════════════════════════════════════════════════════
+const DISC_ORDER=['CLM','CLC','GO','PED','PREVENTIVA'];
+const DISC_LABELS={CLM:'Clínica Médica (CLM)',CLC:'Cirurgia (CLC)',GO:'Gineco-Obstetrícia (GO)',PED:'Pediatria (PED)',PREVENTIVA:'Preventiva / Saúde Pública'};
+function discCfgGetBancas(){
+  const total=Object.values(DISC_WEIGHTS.by_disc).reduce((t,v)=>t+(v.total||0),0)||1;
+  const w={};
+  DISC_ORDER.forEach(d=>{ const v=DISC_WEIGHTS.by_disc[d]; w[d]=v?Math.round((v.total||0)/total*100):0; });
+  return w;
+}
+function discCfgLoad(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('qg_disc_cfg')||'null');
+    return (saved && typeof saved==='object') ? saved : discCfgGetBancas();
+  }catch(e){ return discCfgGetBancas(); }
+}
+function discCfgRenderSliders(){
+  const container=document.getElementById('cfg-disc-sliders');
+  if(!container) return;
+  const current=discCfgLoad();
+  container.innerHTML=DISC_ORDER.map(d=>{
+    const val=current[d]||0;
+    return `<div style="display:grid;grid-template-columns:180px 1fr 50px;align-items:center;gap:8px">
+      <label style="font-size:12px;color:var(--t2)">${DISC_LABELS[d]}</label>
+      <input type="range" min="0" max="100" value="${val}" id="disc-slider-${d}" oninput="discCfgUpdateTotal()">
+      <span id="disc-val-${d}" style="font-size:12px;font-weight:600">${val}%</span>
+    </div>`;
+  }).join('');
+  discCfgUpdateTotal();
+}
+function discCfgUpdateTotal(){
+  let total=0;
+  DISC_ORDER.forEach(d=>{
+    const s=document.getElementById('disc-slider-'+d);
+    const v=document.getElementById('disc-val-'+d);
+    if(s){ const n=parseInt(s.value)||0; total+=n; if(v) v.textContent=n+'%'; }
+  });
+  const tot=document.getElementById('cfg-disc-total');
+  if(tot){
+    tot.textContent=total+'%';
+    tot.style.background=Math.abs(total-100)<1?'var(--grn)':'var(--red)';
+  }
+}
+function discCfgApply(){
+  let total=0;
+  const cfg={};
+  DISC_ORDER.forEach(d=>{ const s=document.getElementById('disc-slider-'+d); if(s){ cfg[d]=parseInt(s.value)||0; total+=cfg[d]; } });
+  if(Math.abs(total-100)>1){ alert('O total deve ser 100%. Atual: '+total+'%'); return; }
+  try{ localStorage.setItem('qg_disc_cfg',JSON.stringify(cfg)); }catch(e){}
+  invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
+  _showToast('Proporções salvas e cronograma recalculado!');
+}
+function discCfgPreset(type){
+  if(type==='equal'){
+    DISC_ORDER.forEach(d=>{ const s=document.getElementById('disc-slider-'+d); if(s) s.value=20; });
+  } else {
+    const b=discCfgGetBancas();
+    DISC_ORDER.forEach(d=>{ const s=document.getElementById('disc-slider-'+d); if(s) s.value=b[d]||0; });
+    try{ localStorage.removeItem('qg_disc_cfg'); }catch(e){}
+  }
+  discCfgUpdateTotal();
+}
+
 // SR CONFIG — Configurable spaced repetition intervals
 // ═══════════════════════════════════════════════════════
 const SR_DEFAULTS = {gt90:90, gt80:60, gt70:45, gt60:30, lt60:15, default:30};
@@ -1025,6 +1164,20 @@ const HRS_PER_WK=15; // fallback
 const MIN_NEW=90, MIN_BLOCK=35, MIN_REV=25; // fallback for non-scheduler code
 
 function getDiscWeights(){
+  // Check for user-defined disc proportions
+  try{
+    const saved=JSON.parse(localStorage.getItem('qg_disc_cfg')||'null');
+    if(saved && typeof saved==='object'){
+      const keys=Object.keys(saved);
+      if(keys.length>0){
+        const tot=keys.reduce((s,k)=>s+(saved[k]||0),0)||1;
+        const w={};
+        keys.forEach(k=>w[k]=(saved[k]||0)/tot);
+        return w;
+      }
+    }
+  }catch(e){}
+  // Default: use banca incidence
   const total=Object.values(DISC_WEIGHTS.by_disc).reduce((t,v)=>t+(v.total||0),0)||1;
   const w={};
   for(const[d,v] of Object.entries(DISC_WEIGHTS.by_disc)) w[d]=(v.total||0)/total;
@@ -1050,7 +1203,19 @@ function recomputeScheduler(){
   const blockPool     =[...all.filter(t=>t.pendingBlocks.length>0)].sort((a,b)=>b.priority-a.priority);
   const newPool       =[...all.filter(t=>t.stage==='CONTENT_SEEN'||t.stage==='NOT_STARTED')].sort((a,b)=>b.priority-a.priority);
 
-  const WEEKS_N=26;
+  // Exam date config: use saved date or fallback to 26 weeks
+  const _examCfg = (function(){
+    try{ return JSON.parse(localStorage.getItem('qg_exam_date')||'null'); }catch(e){ return null; }
+  })();
+  const WEEKS_N = (function(){
+    if(_examCfg && _examCfg.date){
+      const examMs = new Date(_examCfg.date).getTime();
+      const todayMs = new Date(TODAY).getTime();
+      const weeks = Math.ceil((examMs - todayMs) / (7*24*3600*1000));
+      return Math.max(4, Math.min(weeks, 104));
+    }
+    return 26;
+  })();
   for(let w=0;w<WEEKS_N;w++){
     const wkStart=new Date(start);
     wkStart.setDate(start.getDate()+w*7);
@@ -2921,6 +3086,8 @@ function cfgUpdatePriorityPreview(){
 }
 
 function renderConfig(){
+  examDateLoad();
+  discCfgRenderSliders();
   cfgRenderBancaSliders();
   srFillForm();
   spFillForm();
