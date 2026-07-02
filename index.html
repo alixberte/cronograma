@@ -39,7 +39,7 @@ body{background:var(--bg);color:var(--t);font-family:'Inter',system-ui,sans-seri
 .sb-foot strong{color:var(--t);font-weight:600}
 .main{flex:1;overflow-x:hidden;min-width:0}h
 .topbar{background:var(--s);border-bottom:1px solid var(--b);padding:0 20px;height:44px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.tbl-l{font-size:13px;font-weight:600}
+.tbl-l{font-size:18px;font-weight:700;letter-spacing:-.02em}
 .tbl-r{display:flex;align-items:center;gap:7px}
 .tbdate{font-size:10px;color:var(--t3);background:var(--s2);padding:3px 8px;border-radius:20px;border:1px solid var(--b)}
 .ct{padding:16px 20px;max-width:1160px}
@@ -1531,7 +1531,7 @@ function openTopicModal(t){
   const pipe=['NOT_STARTED','CONTENT_SEEN','Q1_DONE','Q2_DONE','Q3_DONE'];
   const ci=pipe.indexOf(t.stage);
   document.getElementById('m-topic-body').innerHTML=`
-    <div class="modal-title">${t.n}</div>
+    <div class="modal-title">${(()=>{const _ci=t.n.indexOf(":");if(_ci>-1){const _pre=t.n.slice(0,_ci).trim();const _post=t.n.slice(_ci+1).trim();return _pre+"<div style=\"font-size:11px;color:var(--t3);font-weight:400;margin-top:3px;line-height:1.4\">"+_post+"</div>";}return t.n;})()}</div>
     <div class="row mb8"><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span><span class="chip cdk">${t.topico||''}</span>
     <span style="font-size:11px;color:var(--t3)">Inc: <strong>${t.inc}</strong> · Pri: <strong>${t.priority}</strong></span></div>
     <div class="pipe mb12">
@@ -2228,9 +2228,9 @@ function renderMap(cid,filterDisc){
       const grid=document.createElement('div');grid.className='sg';
       tits.forEach(t=>{
         const card=document.createElement('div');card.className=`sc ${mapCC(t)}`;
-        card.innerHTML=`<div class="rb"><div class="sc-name">${t.n}</div>${t.pct!==null?`<span style="font-size:10px;font-weight:600;color:${acColor(t.pct)}">${t.pct}%</span>`:''}</div>
+        card.innerHTML=`<div class="rb"><div class="sc-name" style="line-height:1.4">${(()=>{const _ci=t.n.indexOf(":");if(_ci>-1){const _pre=t.n.slice(0,_ci).trim();const _post=t.n.slice(_ci+1).trim();const _uid="scsub"+t.id.replace(/[^a-z0-9]/gi,"");return _pre+'<span class="sc-tog" style="font-size:9px;color:var(--t3);cursor:pointer;margin-left:3px;vertical-align:middle">▸</span>'+"<\/div><div class=\"sc-sub\" id=\""+_uid+"\" style=\"display:none;font-size:9.5px;color:var(--t3);font-weight:400;line-height:1.4;margin-top:2px;padding-top:2px;border-top:1px dotted var(--b)\">"+_post;}return t.n;})()}</div>${t.pct!==null?`<span style="font-size:10px;font-weight:600;color:${acColor(t.pct)}">${t.pct}%</span>`:''}</div>
           <div class="sc-meta"><span>Inc:${t.inc}</span><span class="st ${STAGE_CLASS[t.extStage]||'s-pend'}" style="margin-left:auto;font-size:9px">${STAGE_LABEL[t.extStage]||STAGE_LABEL[t.stage]||t.stage}</span></div>`;
-        card.onclick=()=>openTopicModal(t);
+        card.onclick=(e)=>{const sub=card.querySelector('.sc-sub');if(sub&&sub.style.display==='none'){sub.style.display='block';const tog=card.querySelector('.sc-tog');if(tog)tog.textContent='▾';}else{openTopicModal(t);}};
         grid.appendChild(card);
       });
       sd.appendChild(grid);dd.appendChild(sd);
