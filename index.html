@@ -969,7 +969,12 @@ function labelWithToggle(label,n){
 function labelWithToggleId(label,frozenName,topicId){
   if(label==null) return label;
   var curName=frozenName;
-  try{ if(typeof PLANILHA!=='undefined'){ var p=PLANILHA.find(function(x){return x.id===topicId;}); if(p&&p.n) curName=p.n; } }catch(e){}
+  try{ if(typeof PLANILHA!=='undefined' && frozenName!=null){
+    var p=PLANILHA.find(function(x){return x.id===topicId;});
+    if(!p) p=PLANILHA.find(function(x){return x.n===frozenName;});
+    if(!p) p=PLANILHA.find(function(x){ var ci=String(x.n).indexOf(':'); return ci>-1 && String(x.n).slice(0,ci).trim()===String(frozenName).trim(); });
+    if(p&&p.n) curName=p.n;
+  } }catch(e){}
   if(frozenName!=null && String(label).indexOf(frozenName)>-1){
     return String(label).split(frozenName).join(ttHTML(curName));
   }
