@@ -40,9 +40,9 @@ body{background:var(--bg);color:var(--t);font-family:'Inter',system-ui,sans-seri
 .sibadge{margin-left:auto;min-width:15px;height:15px;border-radius:8px;background:var(--red);color:#fff;font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 3px}
 .sb-foot{margin-top:auto;padding:9px 12px;border-top:1px solid var(--b);font-size:10px;color:var(--t3);line-height:1.7}
 .sb-foot strong{color:var(--t);font-weight:600}
-.main{flex:1;overflow-x:hidden;min-width:0}
+.main{flex:1;overflow-x:hidden;min-width:0}h
 .topbar{background:var(--s);border-bottom:1px solid var(--b);padding:0 20px;height:44px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.tbl-l{font-size:13px;font-weight:600}
+.tbl-l{font-size:18px;font-weight:700;letter-spacing:-.02em}
 .tbl-r{display:flex;align-items:center;gap:7px}
 .tbdate{font-size:10px;color:var(--t3);background:var(--s2);padding:3px 8px;border-radius:20px;border:1px solid var(--b)}
 .ct{padding:16px 20px;max-width:1160px}
@@ -173,6 +173,10 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 .login-err{font-size:11px;color:var(--rlt);background:var(--rl);border-radius:var(--r);padding:6px 9px;margin-bottom:8px;display:none}
 .login-btns{display:flex;flex-direction:column;gap:7px;margin-top:4px}
 .login-btns .btn{justify-content:center;padding:8px 11px;font-size:12px}
+.tt-tog{font-size:9px;color:var(--t3);cursor:pointer;margin-left:5px;font-weight:600;white-space:nowrap;user-select:none;display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:10px;background:var(--s2);border:1px solid var(--b2);transition:all .15s;vertical-align:middle}
+.tt-tog:hover{background:var(--t);color:#fff;border-color:var(--t)}
+.tt-sub{font-size:10.5px;color:var(--t3);font-weight:400;line-height:1.5;margin-top:5px;padding-top:5px;border-top:1px dotted var(--b2);animation:ttfade .18s ease}
+@keyframes ttfade{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 
@@ -579,7 +583,26 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   <div class="mb14">
     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Configurações do sistema</div>
 
-  <!-- SECTION: Scheduler Params -->
+  <!-- SECTION: Data Final da Prova -->
+  <div class="card mb14">
+    <div class="ch"><div class="ctt">📅 Data final do cronograma (prova)</div></div>
+    <div class="alert a-blu mb12" style="font-size:11px">
+      Define até quando o cronograma deve ser planejado. Alterar e clicar <strong>Salvar</strong> recalcula o número de semanas automaticamente.
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <label style="font-size:11px;display:block;margin-bottom:4px;color:var(--t2)">Data da prova</label>
+        <input type="date" id="cfg-exam-date" style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--r1);background:var(--s);color:var(--t1);font-size:13px" oninput="examDatePreview()">
+      </div>
+      <div id="cfg-exam-weeks-preview" style="font-size:12px;color:var(--t2);margin-top:18px"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-k" onclick="examDateApply()">✅ Salvar e recalcular</button>
+      <button class="btn" onclick="examDateReset()">Usar padrão (26 semanas)</button>
+    </div>
+  </div>
+
+    <!-- SECTION: Scheduler Params -->
   <div class="card mb14">
     <div class="ch"><div class="ctt">⏱ Parâmetros de tempo do scheduler</div></div>
     <div class="alert a-blu mb12" style="font-size:11px">
@@ -637,12 +660,26 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
       <button class="btn" onclick="cfgBancaPreset('amrigs')">Só AMRIGS</button>
       <button class="btn" onclick="cfgBancaPreset('amp')">Só AMP</button>
       <button class="btn" onclick="cfgBancaPreset('equal')">Igualitário</button>
-      <button class="btn" onclick="cfgBancaPreset('sanar')">Focar SANAR</button>
       <button class="btn" onclick="cfgBancaReset()">Restaurar padrão</button>
     </div>
   </div>
 
-  <!-- SECTION: SR -->
+  <!-- SECTION: Proporção por Área -->
+  <div class="card mb14">
+    <div class="ch"><div class="ctt">📊 Proporção de estudo por grande área</div><span class="chip cdk" id="cfg-disc-total">100%</span></div>
+    <div class="alert a-blu mb12" style="font-size:11px">
+      Controla quanto de cada grande área será incluído por semana no cronograma. <strong>Total deve somar 100%.</strong>
+      Se usar o botão de reset, volta à proporção calculada automaticamente pela incidência nas bancas.
+    </div>
+    <div id="cfg-disc-sliders" style="display:grid;gap:10px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-k" onclick="discCfgApply()">✅ Salvar e aplicar</button>
+      <button class="btn" onclick="discCfgPreset('bancas')">Usar incidência das bancas</button>
+      <button class="btn" onclick="discCfgPreset('equal')">Igualitário (20% cada)</button>
+    </div>
+  </div>
+
+    <!-- SECTION: SR -->
   <div class="card mb14">
     <div class="ch"><div class="ctt">⏱ Revisão espaçada — intervalos por acerto</div></div>
     <div class="alert a-blu mb12" style="font-size:11px">
@@ -705,6 +742,111 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 <script>
 
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// EXAM DATE CONFIG — Data final do cronograma
+// ═══════════════════════════════════════════════════════
+function examDateLoad(){
+  try{
+    const s=JSON.parse(localStorage.getItem('qg_exam_date')||'null');
+    const el=document.getElementById('cfg-exam-date');
+    if(el && s && s.date) el.value=s.date;
+    examDatePreview();
+  }catch(e){}
+}
+function examDatePreview(){
+  const el=document.getElementById('cfg-exam-date');
+  const prev=document.getElementById('cfg-exam-weeks-preview');
+  if(!el||!prev) return;
+  const v=el.value;
+  if(!v){ prev.textContent=''; return; }
+  const ms=new Date(v).getTime()-new Date(TODAY).getTime();
+  const weeks=Math.ceil(ms/(7*24*3600*1000));
+  if(weeks<=0){ prev.innerHTML='<span style="color:var(--red)">⚠ Data já passou!</span>'; return; }
+  prev.textContent=weeks+' semanas até a prova';
+}
+function examDateApply(){
+  const el=document.getElementById('cfg-exam-date');
+  if(!el||!el.value){ alert('Selecione uma data primeiro.'); return; }
+  const ms=new Date(el.value).getTime()-new Date(TODAY).getTime();
+  const weeks=Math.ceil(ms/(7*24*3600*1000));
+  if(weeks<=0){ alert('A data selecionada já passou!'); return; }
+  try{ localStorage.setItem('qg_exam_date', JSON.stringify({date:el.value})); }catch(e){}
+  invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
+  _showToast('Data da prova salva! Cronograma recalculado para '+weeks+' semanas.');
+}
+function examDateReset(){
+  try{ localStorage.removeItem('qg_exam_date'); }catch(e){}
+  const el=document.getElementById('cfg-exam-date');
+  if(el) el.value='';
+  examDatePreview();
+  invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
+  _showToast('Data removida. Cronograma usando padrão de 26 semanas.');
+}
+
+// ═══════════════════════════════════════════════════════
+// DISC WEIGHTS CONFIG — Proporção de estudo por grande área
+// ═══════════════════════════════════════════════════════
+const DISC_ORDER=['CLM','CLC','GO','PED','PREVENTIVA'];
+const DISC_LABELS={CLM:'Clínica Médica (CLM)',CLC:'Cirurgia (CLC)',GO:'Gineco-Obstetrícia (GO)',PED:'Pediatria (PED)',PREVENTIVA:'Preventiva / Saúde Pública'};
+function discCfgGetBancas(){
+  const total=Object.values(DISC_WEIGHTS.by_disc).reduce((t,v)=>t+(v.total||0),0)||1;
+  const w={};
+  DISC_ORDER.forEach(d=>{ const v=DISC_WEIGHTS.by_disc[d]; w[d]=v?Math.round((v.total||0)/total*100):0; });
+  return w;
+}
+function discCfgLoad(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('qg_disc_cfg')||'null');
+    return (saved && typeof saved==='object') ? saved : discCfgGetBancas();
+  }catch(e){ return discCfgGetBancas(); }
+}
+function discCfgRenderSliders(){
+  const container=document.getElementById('cfg-disc-sliders');
+  if(!container) return;
+  const current=discCfgLoad();
+  container.innerHTML=DISC_ORDER.map(d=>{
+    const val=current[d]||0;
+    return `<div style="display:grid;grid-template-columns:180px 1fr 50px;align-items:center;gap:8px">
+      <label style="font-size:12px;color:var(--t2)">${DISC_LABELS[d]}</label>
+      <input type="range" min="0" max="100" value="${val}" id="disc-slider-${d}" oninput="discCfgUpdateTotal()">
+      <span id="disc-val-${d}" style="font-size:12px;font-weight:600">${val}%</span>
+    </div>`;
+  }).join('');
+  discCfgUpdateTotal();
+}
+function discCfgUpdateTotal(){
+  let total=0;
+  DISC_ORDER.forEach(d=>{
+    const s=document.getElementById('disc-slider-'+d);
+    const v=document.getElementById('disc-val-'+d);
+    if(s){ const n=parseInt(s.value)||0; total+=n; if(v) v.textContent=n+'%'; }
+  });
+  const tot=document.getElementById('cfg-disc-total');
+  if(tot){
+    tot.textContent=total+'%';
+    tot.style.background=Math.abs(total-100)<1?'var(--grn)':'var(--red)';
+  }
+}
+function discCfgApply(){
+  let total=0;
+  const cfg={};
+  DISC_ORDER.forEach(d=>{ const s=document.getElementById('disc-slider-'+d); if(s){ cfg[d]=parseInt(s.value)||0; total+=cfg[d]; } });
+  if(Math.abs(total-100)>1){ alert('O total deve ser 100%. Atual: '+total+'%'); return; }
+  try{ localStorage.setItem('qg_disc_cfg',JSON.stringify(cfg)); }catch(e){}
+  invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
+  _showToast('Proporções salvas e cronograma recalculado!');
+}
+function discCfgPreset(type){
+  if(type==='equal'){
+    DISC_ORDER.forEach(d=>{ const s=document.getElementById('disc-slider-'+d); if(s) s.value=20; });
+  } else {
+    const b=discCfgGetBancas();
+    DISC_ORDER.forEach(d=>{ const s=document.getElementById('disc-slider-'+d); if(s) s.value=b[d]||0; });
+    try{ localStorage.removeItem('qg_disc_cfg'); }catch(e){}
+  }
+  discCfgUpdateTotal();
+}
+
 // SR CONFIG — Configurable spaced repetition intervals
 // ═══════════════════════════════════════════════════════
 const SR_DEFAULTS = {gt90:90, gt80:60, gt70:45, gt60:30, lt60:15, default:30};
@@ -802,6 +944,45 @@ function fmtD(iso){
 }
 function acColor(v){return v>=80?'var(--grn)':v>=70?'var(--amb)':'var(--red)';}
 function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
+let _ttSeq=0;
+function ttHTML(n){
+  if(n==null) return '';
+  var ci=String(n).indexOf(':');
+  if(ci<0) return n;
+  var pre=String(n).slice(0,ci).trim();
+  var post=String(n).slice(ci+1).trim();
+  var id='tt'+(_ttSeq++);
+  return pre+'<span class="tt-tog" onclick="event.stopPropagation();toggleTT(\''+id+'\',this)">+ detalhes</span><div class="tt-sub" id="'+id+'" style="display:none">'+post+'</div>';
+}
+function toggleTT(id,el){
+  var sub=document.getElementById(id);
+  if(!sub) return;
+  var isOpen=sub.style.display!=='none';
+  sub.style.display=isOpen?'none':'block';
+  el.innerHTML=isOpen?'+ detalhes':'\u2212 ocultar';
+}
+function labelWithToggle(label,n){
+  if(n==null) return label;
+  var ci=String(n).indexOf(':');
+  if(ci<0) return label;
+  if(String(label).indexOf(n)<0) return label;
+  return String(label).split(n).join(ttHTML(n));
+}
+function labelWithToggleId(label,frozenName,topicId){
+  if(label==null) return label;
+  var curName=frozenName;
+  try{ if(typeof PLANILHA!=='undefined' && frozenName!=null){
+    var p=PLANILHA.find(function(x){return x.id===topicId;});
+    if(!p) p=PLANILHA.find(function(x){return x.n===frozenName;});
+    if(!p) p=PLANILHA.find(function(x){ var ci=String(x.n).indexOf(':'); return ci>-1 && String(x.n).slice(0,ci).trim()===String(frozenName).trim(); });
+    if(p&&p.n) curName=p.n;
+  } }catch(e){}
+  if(frozenName!=null && String(label).indexOf(frozenName)>-1){
+    return String(label).split(frozenName).join(ttHTML(curName));
+  }
+  return labelWithToggle(label, curName);
+}
+
 
 // ═══════════════════════════════════════════════════════
 // LAYER 3 — PERSISTENCE
@@ -914,6 +1095,24 @@ function persistState(){
     if(!CURRENT_UID) localStorage.removeItem('qg_v4'); // clean up old key
   }catch(e){}
 }
+// ── Planilha version migration ──────────────────────────────────────
+// When planilha.js changes (new version), clear sessions to avoid
+// double-counting progress (new planilha already has progress embedded)
+(function migratePlanilha(){
+  const PLANILHA_VERSION = '2026-07-01-v2';
+  const storedVer = localStorage.getItem('qg_planilha_ver');
+  if(storedVer !== PLANILHA_VERSION){
+    try{
+      const st = JSON.parse(localStorage.getItem('qg_v5')||'{}');
+      if(st.sessions && st.sessions.length > 0){
+        st.sessions = [];
+        localStorage.setItem('qg_v5', JSON.stringify(st));
+      }
+    }catch(e){}
+    localStorage.setItem('qg_planilha_ver', PLANILHA_VERSION);
+  }
+})();
+
 loadState();
 
 // ═══════════════════════════════════════════════════════
@@ -990,16 +1189,16 @@ function computeTopic(base){
   }
 
   // PRIORITY SCORE
-  const inc=(base.am||0)+(base.ap||0)+(base.sa||0);
+  const inc=(base.am||0)+(base.ap||0); // SANAR removido
   const dw=DISC_WEIGHTS.by_disc[base.disc];
   const discTotal=dw?dw.total:100;
   const discWeight=discTotal/1856;
   const stageW={NOT_STARTED:0,CONTENT_SEEN:8,Q1_DONE:20,Q2_DONE:30,Q3_DONE:0}[stage]||0;
   const diffPenalty=pct!==null?Math.max(0,100-pct):55;
-  const urgency=revStatus==='late'?60:revStatus==='today'?40:revStatus==='week'?20:0;
-  const blockUrg=pendingBlocks.some(b=>b.overdue)?35:pendingBlocks.length?12:0;
+  // urgency removido: atraso não influencia prioridade (incidência é o fator dominante)
+  const blockUrg=pendingBlocks.some(b=>b.overdue)?15:pendingBlocks.length?6:0;
   const proxMult=1+clamp((1-DIAS_PROVA/540),0,0.5);
-  const priority=Math.round((inc*2.5+diffPenalty*0.4+stageW+urgency+blockUrg+discWeight*50)*proxMult);
+  const priority=Math.round((inc*3.5+diffPenalty*0.4+stageW+blockUrg+discWeight*50)*proxMult);
 
   return {...base,r1,r2,r3,q,a,pct,stage,extStage,nextRev,revInterval,revStatus,pendingBlocks,priority,inc,discWeight};
 }
@@ -1038,6 +1237,20 @@ const HRS_PER_WK=15; // fallback
 const MIN_NEW=90, MIN_BLOCK=35, MIN_REV=25; // fallback for non-scheduler code
 
 function getDiscWeights(){
+  // Check for user-defined disc proportions
+  try{
+    const saved=JSON.parse(localStorage.getItem('qg_disc_cfg')||'null');
+    if(saved && typeof saved==='object'){
+      const keys=Object.keys(saved);
+      if(keys.length>0){
+        const tot=keys.reduce((s,k)=>s+(saved[k]||0),0)||1;
+        const w={};
+        keys.forEach(k=>w[k]=(saved[k]||0)/tot);
+        return w;
+      }
+    }
+  }catch(e){}
+  // Default: use banca incidence
   const total=Object.values(DISC_WEIGHTS.by_disc).reduce((t,v)=>t+(v.total||0),0)||1;
   const w={};
   for(const[d,v] of Object.entries(DISC_WEIGHTS.by_disc)) w[d]=(v.total||0)/total;
@@ -1063,7 +1276,19 @@ function recomputeScheduler(){
   const blockPool     =[...all.filter(t=>t.pendingBlocks.length>0)].sort((a,b)=>b.priority-a.priority);
   const newPool       =[...all.filter(t=>t.stage==='CONTENT_SEEN'||t.stage==='NOT_STARTED')].sort((a,b)=>b.priority-a.priority);
 
-  const WEEKS_N=26;
+  // Exam date config: use saved date or fallback to 26 weeks
+  const _examCfg = (function(){
+    try{ return JSON.parse(localStorage.getItem('qg_exam_date')||'null'); }catch(e){ return null; }
+  })();
+  const WEEKS_N = (function(){
+    if(_examCfg && _examCfg.date){
+      const examMs = new Date(_examCfg.date).getTime();
+      const todayMs = new Date(TODAY).getTime();
+      const weeks = Math.ceil((examMs - todayMs) / (7*24*3600*1000));
+      return Math.max(4, Math.min(weeks, 104));
+    }
+    return 26;
+  })();
   for(let w=0;w<WEEKS_N;w++){
     const wkStart=new Date(start);
     wkStart.setDate(start.getDate()+w*7);
@@ -1126,11 +1351,18 @@ function recomputeScheduler(){
         const used=discsUsed[t.disc]||0;
         const target=Math.ceil((discW[t.disc]||0.2)*4); // proportional slot
         if(used<target){
-          const act=t.stage==='CONTENT_SEEN'?'Questões Q1':'Novo conteúdo';
-          tasks.push({type:'NEW',topicId:t.id,disc:t.disc,n:t.n,
-            label:`${act}: ${t.n} (${t.disc})`,
-            explain:`Prioridade ${t.priority} · incidência ${t.inc} · peso ${t.disc} ${((discW[t.disc]||0)*100).toFixed(1)}% · ${STAGE_LABEL[t.stage]}`});
-          min+=_mNew;  // conteúdo novo = 50min teoria + 30min Q1
+          // Conteúdo novo (só se ainda não fez CONTENT_SEEN)
+          if(t.stage!=='CONTENT_SEEN'){
+            tasks.push({type:'NEW',topicId:t.id,disc:t.disc,n:t.n,
+              label:`Novo conteúdo: ${t.n} (${t.disc})`,
+              explain:`Prioridade ${t.priority} · incidência ${t.inc} · peso ${t.disc} ${((discW[t.disc]||0)*100).toFixed(1)}% · ${STAGE_LABEL[t.stage]}`});
+            min+=sp.minNew;
+          }
+          // Q1 sempre gerado na mesma semana do conteúdo novo
+          tasks.push({type:'Q1_TASK',topicId:t.id,disc:t.disc,n:t.n,
+            label:`Bloco Q1: ${t.n} (${t.disc})`,
+            explain:`Q1 na mesma semana · incidência ${t.inc} · prioridade ${t.priority}`});
+          min+=sp.minQ1;
           discsUsed[t.disc]=(discsUsed[t.disc]||0)+1;
           newPool.splice(i,1);
           newCount++;
@@ -1274,7 +1506,11 @@ function _refreshHojeMetricsOnly(){
 // Refresh cron metrics row only
 function _refreshCronMetricsOnly(){
   const all=computeAll();
-  const totalT=WEEKS.reduce((t,w)=>t+w.tasks.length,0);
+  // Para a semana atual, usar weekPlans como referência de total
+  const totalT=WEEKS.reduce((t,w)=>{
+    var ref=(w.isCurrent&&STATE.weekPlans[w.wkISO])?STATE.weekPlans[w.wkISO]:w.tasks;
+    return t+ref.length;
+  },0);
   const doneT=WEEKS.reduce(function(total,w){
     var ex=STATE.weekExecution[w.wkISO]||{};
     return total+Object.values(ex).filter(function(v){return v&&v.completed;}).length;
@@ -1299,6 +1535,11 @@ function doSave(){
   STATE.sessions.push({id:'u'+Date.now(),data,n,disc,tipo,q,a,obs});
   if(!STATE.heatmap[data]) STATE.heatmap[data]=0;
   STATE.heatmap[data]++;
+  // Auto-criar sessão de Q1 quando conteúdo novo é registrado (regra pedagógica)
+  if(tipo==='CONTENT_SEEN'){
+    STATE.sessions.push({id:'u'+(Date.now()+1),data,n,disc,tipo:'Q1_DONE',q:0,a:0,obs:'(Q1 gerado automaticamente — registre acertos/erros depois)'});
+    STATE.heatmap[data]++;
+  }
   afterSave(); closeModal('m-reg');
   ['mr-n','mr-q','mr-a','mr-obs'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('mr-mac').style.display='none';
@@ -1346,14 +1587,14 @@ function openTopicModal(t){
   const pipe=['NOT_STARTED','CONTENT_SEEN','Q1_DONE','Q2_DONE','Q3_DONE'];
   const ci=pipe.indexOf(t.stage);
   document.getElementById('m-topic-body').innerHTML=`
-    <div class="modal-title">${t.n}</div>
+    <div class="modal-title">${(()=>{const _ci=t.n.indexOf(":");if(_ci>-1){const _pre=t.n.slice(0,_ci).trim();const _post=t.n.slice(_ci+1).trim();return _pre+"<div style=\"font-size:11px;color:var(--t3);font-weight:400;margin-top:3px;line-height:1.4\">"+_post+"</div>";}return t.n;})()}</div>
     <div class="row mb8"><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span><span class="chip cdk">${t.topico||''}</span>
     <span style="font-size:11px;color:var(--t3)">Inc: <strong>${t.inc}</strong> · Pri: <strong>${t.priority}</strong></span></div>
     <div class="pipe mb12">
       ${pipe.map((p,i)=>`<span class="pstep ${i<ci?'done-s':i===ci?'active':''}">${STAGE_LABEL[p]||p}</span>${i<pipe.length-1?'<span class="parr">›</span>':''}`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:7px;margin-bottom:11px">
-      ${[['AMRIGS',t.am],['AMP',t.ap],['SANAR',t.sa],['Score',t.inc]].map(([l,v])=>`
+      ${[['AMRIGS',t.am],['AMP',t.ap],['Score',t.inc]].map(([l,v])=>`
       <div style="background:var(--s2);border-radius:var(--r);padding:7px 9px">
         <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${l}</div>
         <div style="font-size:17px;font-weight:300">${v||0}</div>
@@ -1376,6 +1617,7 @@ function openTopicModal(t){
     ${t.nextRev?`<div class="alert ${t.revStatus==='late'?'a-red':t.revStatus==='today'?'a-amb':'a-blu'} mb8">
       <strong>Próxima revisão espaçada:</strong> ${fmtD(t.nextRev)} · ${t.revInterval}d (SM-2: ${t.pct}%)
     </div>`:''}
+    ${t.obs?'<div style="margin-bottom:10px;padding:8px 10px;background:var(--s2);border-radius:var(--r1);border-left:3px solid var(--teal)"><div style="font-size:10px;color:var(--t3);margin-bottom:3px">📝 Observação</div><div style="font-size:12px;color:var(--t1)">'+ (t.obs||"") +'</div></div>':''}
     <div style="font-size:10px;color:var(--t3);margin-bottom:2px">Próxima ação</div>
     <div style="font-size:12.5px;font-weight:500;margin-bottom:3px">${getActionLabel(t)}</div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:10px">${getExpl(t)}</div>
@@ -1399,16 +1641,16 @@ function renderHoje(){
   document.getElementById('h-sub').textContent=`${DIAS_PROVA} dias para a prova · ${Math.ceil(DIAS_PROVA/7)} semanas`;
   const all=computeAll();
   const top=[...all].sort((a,b)=>b.priority-a.priority)[0];
-  if(top) document.getElementById('h-next').textContent=`${top.n} (${top.disc}) — ${getActionLabel(top)}`;
+  if(top) document.getElementById('h-next').innerHTML=`${ttHTML(top.n)} (${top.disc}) — ${getActionLabel(top)}`;
 
   const lateRevs=all.filter(t=>t.revStatus==='late'||t.revStatus==='today');
   const lateBlks=all.filter(t=>t.pendingBlocks.some(b=>b.overdue)&&!lateRevs.find(r=>r.id===t.id));
   const urgent=[...lateRevs.map(t=>({tp:'rev',t})),...lateBlks.map(t=>({tp:'blk',t}))].slice(0,8);
   document.getElementById('h-chip').textContent=urgent.length;
   document.getElementById('h-urgent').innerHTML=urgent.length?urgent.map(({tp,t})=>`
-    <div class="tc" onclick="openTopicModal(computeTopic(PLANILHA.find(p=>p.id==='${t.id}')))">
+    <div class="tc" onclick="if(event.target.closest('.tt-tog'))return;openTopicModal(computeTopic(PLANILHA.find(p=>p.id==='${t.id}')))">
       <div class="tc-main">
-        <div class="tc-title">${tp==='rev'?'🔴 Rev. atrasada':'⚠ Bloco atrasado'}: ${t.n} (${t.disc})</div>
+        <div class="tc-title">${tp==='rev'?'🔴 Rev. atrasada':'⚠ Bloco atrasado'}: ${ttHTML(t.n)} (${t.disc})</div>
         <div class="tc-meta"><span class="tp ${tp==='rev'?'tp-rev':'tp-q2'}">${tp==='rev'?'REVISÃO':'BLOCO'}</span>
         ${t.pct!==null?`<span style="color:${acColor(t.pct)}">${t.pct}%</span>`:''}
         </div>
@@ -1421,7 +1663,7 @@ function renderHoje(){
     <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b)">
       <div style="width:7px;height:7px;border-radius:50%;background:${t.revStatus==='late'?'var(--red)':t.revStatus==='today'?'var(--amb)':'var(--grn)'};flex-shrink:0"></div>
       <div style="flex:1">
-        <div style="font-size:11.5px;font-weight:500">${t.n}</div>
+        <div style="font-size:11.5px;font-weight:500">${ttHTML(t.n)}</div>
         <div style="font-size:10px;color:var(--t3)">${t.disc} · ${fmtD(t.nextRev)} · ${t.revInterval}d · ${t.pct!==null?t.pct+'%':'—'}</div>
       </div>
       <span class="st ${t.revStatus==='late'?'s-crit':t.revStatus==='today'?'s-warn':'s-ok'}">${fmtD(t.nextRev)}</span>
@@ -1457,7 +1699,7 @@ function renderHoje(){
     <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b)">
       <div style="width:7px;height:7px;border-radius:50%;background:${t.pendingBlocks[0].overdue?'var(--red)':'var(--blue)'};flex-shrink:0"></div>
       <div style="flex:1">
-        <div style="font-size:11.5px;font-weight:500">${t.n}</div>
+        <div style="font-size:11.5px;font-weight:500">${ttHTML(t.n)}</div>
         <div style="font-size:10px;color:var(--t3)">${t.disc} · ${t.pendingBlocks[0].block} auto · vence ${fmtD(t.pendingBlocks[0].due)}</div>
       </div>
       <span class="st ${t.pendingBlocks[0].overdue?'s-crit':'s-rev'}">${t.pendingBlocks[0].overdue?'Atrasado':fmtD(t.pendingBlocks[0].due)}</span>
@@ -1497,12 +1739,36 @@ function renderSemana(){
       return Object.assign({},t,{
         uid: t.uid || (curWk.wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i)),
         idx: i,
-        min: t.min || (t.type==='NEW'?90:35)
+        min: t.min || (t.type==='NEW'?SP().minNew:t.type==='Q1_TASK'?SP().minQ1:t.type==='Q2_TASK'?SP().minQ2:t.type==='Q3_TASK'?SP().minQ3:SP().minRev)
       });
     });
     persistState();
   }
 
+  // MIGRATION: inject Q1_TASK into frozen plans that were created before the Q1_TASK fix
+  var planToCheck = STATE.weekPlans[curWk.wkISO] || [];
+  if(planToCheck.length){
+    var planTopicsWithNew = planToCheck.filter(function(t){return t.type==='NEW';}).map(function(t){return t.topicId||t.n;});
+    planTopicsWithNew.forEach(function(tid){
+      var hasQ1 = planToCheck.some(function(t){return t.type==='Q1_TASK'&&(t.topicId||t.n)===tid;});
+      if(!hasQ1){
+        var newTask = planToCheck.find(function(t){return t.type==='NEW'&&(t.topicId||t.n)===tid;});
+        if(newTask){
+          var sp0=SP();
+          var q1Task = Object.assign({},newTask,{
+            type:'Q1_TASK',
+            uid: newTask.uid+'_q1',
+            idx: STATE.weekPlans[curWk.wkISO].length,
+            min: sp0.minQ1,
+            label: 'Bloco Q1: '+(newTask.n||tid),
+            explain: 'Q1 na mesma semana · migrado automaticamente'
+          });
+          STATE.weekPlans[curWk.wkISO].push(q1Task);
+        }
+      }
+    });
+    persistState();
+  }
   // SOURCE OF TRUTH: weekPlans + weekExecution
   var plan = STATE.weekPlans[curWk.wkISO];
   var exec = STATE.weekExecution[curWk.wkISO] || {};
@@ -1510,7 +1776,8 @@ function renderSemana(){
   var pct  = plan.length ? Math.round(done/plan.length*100) : 0;
   var pctColor = pct>=80?'var(--grn)':pct>=50?'var(--amb)':'var(--t)';
 
-  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+Math.round(curWk.min/60*10)/10+'h';
+  var planMinTotal = plan.reduce(function(t,tk){return t+(tk.min||SP().minRev);},0);
+  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+Math.round(planMinTotal/60*10)/10+'h';
 
   // HERO
   var progStrip = plan.map(function(t){
@@ -1535,8 +1802,8 @@ function renderSemana(){
   _renderSemStats(curWk.wkISO);
 
   // TASK LIST
-  var TL = {NEW:'NOVO',SPACED_REV:'REVISÃO',Q2_TASK:'Q2',Q3_TASK:'Q3'};
-  var TC = {NEW:'tp-novo',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
+  var TL = {NEW:'NOVO',Q1_TASK:'Q1',SPACED_REV:'REVISÃO',Q2_TASK:'Q2',Q3_TASK:'Q3'};
+  var TC = {NEW:'tp-novo',Q1_TASK:'tp-q2',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
 
   document.getElementById('sem-tasks').innerHTML = plan.map(function(t){
     var k      = t.uid || String(t.idx);
@@ -1547,7 +1814,7 @@ function renderSemana(){
         ' onchange="toggleTask(\''+wk+'\',\''+k+'\',this)"'+
         ' style="margin-top:2px;flex-shrink:0">'+
       '<div class="tc-main">'+
-        '<div class="tc-title '+(isDone?'crossed':'')+'" id="stl-'+wk+'-'+k+'">'+t.label+'</div>'+
+        '<div class="tc-title '+(isDone?'crossed':'')+'" id="stl-'+wk+'-'+k+'">'+labelWithToggleId(t.label,t.n,t.topicId)+'</div>'+
         '<div class="tc-meta">'+
           '<span class="tp '+(TC[t.type]||'tp-q')+'">'+(TL[t.type]||t.type)+'</span>'+
           '<span style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:250px">'+(t.explain||'')+'</span>'+
@@ -1584,7 +1851,7 @@ function renderSemana(){
           var blk=t.pendingBlocks.find(function(b){return b.due>=curWk.wkISO&&b.due<=curWk.wkEndISO;});
           return '<div style="display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid var(--b)">'+
             '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:'+(blk.block==='Q2'?'#bfdbfe':'#fde68a')+';color:'+(blk.block==='Q2'?'#1e40af':'#92400e')+'">'+blk.block+'</span>'+
-            '<span style="flex:1;font-size:11px">'+t.n+'</span>'+
+            '<span style="flex:1;font-size:11px">'+ttHTML(t.n)+'</span>'+
             '<span style="font-size:9px;color:var(--t3)">'+t.disc+' &middot; vence '+fmtD(blk.due)+'</span>'+
             '</div>';
         }).join('');
@@ -1686,7 +1953,8 @@ function _renderSemStats(wkISO){
     .filter(t => exec[t.uid||String(t.idx)]?.completed)
     .reduce((s,t) => s+(t.min||35), 0);
   const hDone = Math.round(minDone/60*10)/10;
-  const hPlanned = curWk ? Math.round(curWk.min/60*10)/10 : '—';
+  const sp2 = SP();
+  const hPlanned = plan.length ? Math.round(plan.reduce(function(t,tk){return t+(tk.min||sp2.minRev);},0)/60*10)/10 : '—';
 
   // Pct color
   const pctColor = pct>=80?'var(--grn)':pct>=50?'var(--amb)':'var(--t)';
@@ -1724,7 +1992,7 @@ function renderFila(){
   document.getElementById('fila-rec').innerHTML=nxt?`
     <div style="background:var(--t);color:#fff;border-radius:var(--r2);padding:12px 14px;margin-bottom:8px">
       <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;opacity:.4;margin-bottom:3px">Próximo recomendado</div>
-      <div style="font-size:14px;font-weight:500;margin-bottom:3px">${nxt.n}</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:3px">${ttHTML(nxt.n)}</div>
       <div style="font-size:11px;opacity:.55">${nxt.disc} · ${getActionLabel(nxt)}</div>
       <div style="font-size:10px;opacity:.38;margin-top:4px">${getExpl(nxt)}</div>
     </div>
@@ -1740,7 +2008,7 @@ function renderFila(){
   ].map(([l,v,c])=>`<div class="row mb4"><span style="font-size:11px;flex:1">${l}</span><span class="st ${c}">${v}</span></div>`).join('');
   document.getElementById('fila-tbody').innerHTML=q.slice(0,60).map((t,i)=>`<tr>
     <td style="font-weight:600;color:var(--t3)">${i+1}</td>
-    <td style="font-weight:500">${t.n}</td>
+    <td style="font-weight:500">${ttHTML(t.n)}</td>
     <td><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span></td>
     <td style="font-size:11px">${getActionLabel(t)}</td>
     <td style="font-weight:700;color:${t.priority>100?'var(--red)':t.priority>60?'var(--amb)':'var(--t)'}">${t.priority}</td>
@@ -1774,7 +2042,7 @@ function renderRevisoes(){
   else if(filt==='ok') rows=rows.filter(t=>t.revStatus==='ok');
   rows=rows.sort((a,b)=>{const o={late:0,today:1,week:2,none:3,ok:4};return (o[a.revStatus]||3)-(o[b.revStatus]||3);});
   document.getElementById('rev-tbody').innerHTML=rows.map(t=>`<tr>
-    <td style="font-weight:500">${t.n}</td>
+    <td style="font-weight:500">${ttHTML(t.n)}</td>
     <td><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span></td>
     <td><span class="st ${STAGE_CLASS[t.extStage]||'s-pend'}">${STAGE_LABEL[t.extStage]||t.extStage}</span></td>
     <td>${t.pct!==null?`<span style="font-weight:600;color:${acColor(t.pct)}">${t.pct}%</span>`:'—'}</td>
@@ -1806,22 +2074,24 @@ function renderCron(){
     {l:'Semanas geradas',v:WEEKS.length,s:'auto-derivadas'},
   ].map(m=>`<div class="mc"><div class="ml">${m.l}</div><div class="mv" style="${m.c||''};${String(m.v).length>10?'font-size:12px':''}">${m.v}</div><div class="ms">${m.s}</div></div>`).join('');
   const ct=document.getElementById('cr-cont');ct.innerHTML='';
-  const TL={NEW:'NOVO',SPACED_REV:'REV',Q2_TASK:'Q2',Q3_TASK:'Q3'};
-  const TC={NEW:'tp-novo',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
+  const TL={NEW:'NOVO',Q1_TASK:'Q1',SPACED_REV:'REV',Q2_TASK:'Q2',Q3_TASK:'Q3'};
+  const TC={NEW:'tp-novo',Q1_TASK:'tp-q2',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
   WEEKS.filter(w=>{
     if(!mes) return true;
     return new Date(w.wkISO+'T12:00:00').toLocaleDateString('pt-BR',{month:'long'}).toLowerCase().includes(mes);
   }).forEach((w,wi)=>{
     var checks=STATE.weekExecution[w.wkISO]||{}; // raw for future weeks
-    var done=Object.values(checks).filter(function(v){return v&&v.completed;}).length;
-    const p=w.tasks.length?safe_pct(done,w.tasks.length):0;
+    // Semana atual: usar weekPlans como referência (consistente com Esta Semana)
+    var refTasks = (w.isCurrent && STATE.weekPlans[w.wkISO]) ? STATE.weekPlans[w.wkISO] : w.tasks;
+    var done = refTasks.filter(function(t){ var k=t.uid||String(t.idx||0); return checks[k]&&checks[k].completed; }).length;
+    const p=refTasks.length?safe_pct(done,refTasks.length):0;
     const el=document.createElement('div');
     el.className='wkb'+(w.isCurrent?' cur':'');
     el.innerHTML=`
       <div class="wkh" onclick="toggleWk('wb-${wi}','wa-${wi}')">
         <div class="wkh-l">
           <div class="row"><span class="wkn">${w.label}${w.isCurrent?' · <span style=\\"font-weight:700;color:var(--t)\\">← ATUAL</span>':''}</span></div>
-          <div class="wkm">${w.foco} · ${done}/${w.tasks.length} feitas · ${Math.round(w.min/60*10)/10}h</div>
+          <div class="wkm">${w.foco} · ${done}/${refTasks.length} feitas · ${(()=>{var sp3=SP();var refH=(w.isCurrent&&STATE.weekPlans[w.wkISO])?Math.round(STATE.weekPlans[w.wkISO].reduce(function(t,tk){return t+(tk.min||sp3.minRev);},0)/60*10)/10:Math.round(w.min/60*10)/10;return refH;})()}h</div>
         </div>
         <div style="display:flex;align-items:center;gap:7px">
           <div style="width:48px;height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
@@ -1843,13 +2113,21 @@ function renderCron(){
             var isDone = w.isCurrent
               ? !!(wkExec[k]&&wkExec[k].completed)
               : !!(checks[k]||checks[i]);
+            var advBtn = (!w.isCurrent && !w.isPast)
+              ? '<button onclick="advanceTask(\''+w.wkISO+'\',' +
+                '\''+k+'\')" title="Adiantar para semana atual" ' +
+                'style="font-size:9px;padding:1px 5px;border:1px solid var(--b);' +
+                'border-radius:3px;background:var(--s2);color:var(--t3);cursor:pointer;' +
+                'flex-shrink:0;margin-left:2px">&#8593; Adiantar</button>'
+              : '';
             return '<div class="wktask">'+
               '<input type="checkbox"'+(isDone?' checked':'')+' onchange="toggleTask(\''+w.wkISO+'\',\''+k+'\',this)">'+
               '<div style="flex:1">'+
-                '<div class="wktl '+(isDone?'done':'')+'" id="stl-'+w.wkISO+'-'+k+'">'+t.label+'</div>'+
+                '<div class="wktl '+(isDone?'done':'')+'" id="stl-'+w.wkISO+'-'+k+'">'+labelWithToggleId(t.label,t.n,t.topicId)+'</div>'+
                 '<div style="font-size:9px;color:var(--t3);margin-top:1px">'+(t.explain||'')+'</div>'+
               '</div>'+
               '<span class="tp '+(TC[t.type]||'tp-q')+'" style="flex-shrink:0">'+(TL[t.type]||t.type)+'</span>'+
+              advBtn+
               '</div>';
           }).join('');
         })()}
@@ -1867,7 +2145,7 @@ function renderCron(){
               const pctStr = t.pct !== null ? ' · acerto Q1: '+t.pct+'%' : '';
               return '<div style="display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--b)">'
                 + '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:'+(blk.block==='Q2'?'#bfdbfe':'#fde68a')+';color:'+(blk.block==='Q2'?'#1e40af':'#92400e')+'">'+(blk.block)+'</span>'
-                + '<span style="flex:1;font-size:11px">'+t.n+'</span>'
+                + '<span style="flex:1;font-size:11px">'+ttHTML(t.n)+'</span>'
                 + '<span style="font-size:9px;color:var(--t3)">'+t.disc+pctStr+'</span>'
                 + '<span style="font-size:9px;color:var(--t3);margin-left:4px">vence '+fmtD(blk.due)+'</span>'
                 + '</div>';
@@ -1884,6 +2162,49 @@ function toggleWk(bid,aid){
   if(!b)return;
   const open=b.classList.toggle('open');
   if(a)a.style.transform=open?'rotate(90deg)':'rotate(0)';
+}
+
+// Advance a future-week task to the current week plan, mark done, recalculate
+function advanceTask(srcWkISO, taskKey){
+  var srcWk = WEEKS.find(function(w){ return w.wkISO===srcWkISO; });
+  if(!srcWk || srcWk.isCurrent) return;
+  var srcTask = srcWk.tasks.find(function(t,i){ return (t.uid||String(i))===taskKey; });
+  if(!srcTask) return;
+  var curWk = WEEKS.find(function(w){ return w.isCurrent; });
+  if(!curWk) return;
+  var curWkISO = curWk.wkISO;
+  if(!STATE.weekPlans[curWkISO]){
+    STATE.weekPlans[curWkISO] = curWk.tasks.map(function(t,i){
+      return Object.assign({},t,{
+        uid: t.uid||(curWkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i)),
+        idx: i,
+        min: t.min||(t.type==='NEW'?SP().minNew:t.type==='Q1_TASK'?SP().minQ1:t.type==='Q2_TASK'?SP().minQ2:t.type==='Q3_TASK'?SP().minQ3:SP().minRev)
+      });
+    });
+  }
+  var sp = SP();
+  var newMin = srcTask.type==='NEW'?sp.minNew:srcTask.type==='Q1_TASK'?sp.minQ1:srcTask.type==='Q2_TASK'?sp.minQ2:srcTask.type==='Q3_TASK'?sp.minQ3:sp.minRev;
+  var advancedTask = Object.assign({}, srcTask, {
+    uid: curWkISO+'_ADV_'+(srcTask.type||'x')+'_'+(srcTask.topicId||srcTask.n||taskKey),
+    idx: STATE.weekPlans[curWkISO].length,
+    min: newMin,
+    label: '↑ ' + (srcTask.label||srcTask.n),
+    explain: (srcTask.explain||'') + ' · Adiantado de '+srcWkISO
+  });
+  STATE.weekPlans[curWkISO].push(advancedTask);
+  if(!STATE.weekExecution[curWkISO]) STATE.weekExecution[curWkISO]={};
+  STATE.weekExecution[curWkISO][advancedTask.uid] = {completed:true,completed_at:Date.now(),source:'advanced'};
+  var sDate = ISO_TODAY;
+  var sTipo = srcTask.type==='NEW'?'CONTENT_SEEN':srcTask.type==='Q1_TASK'?'Q1_DONE':srcTask.type==='Q2_TASK'?'Q2_DONE':srcTask.type==='Q3_TASK'?'Q3_DONE':'SPACED_REV';
+  STATE.sessions.push({id:'adv'+Date.now(),data:sDate,n:srcTask.n,disc:srcTask.disc,tipo:sTipo,q:0,a:0,obs:'(Adiantado de '+srcWkISO+')'});
+  if(!STATE.heatmap[sDate]) STATE.heatmap[sDate]=0;
+  STATE.heatmap[sDate]++;
+  persistState();
+  invalidateCache();
+  SYNC.dirty = true;
+  recomputeScheduler();
+  _showToast('↑ Tarefa adiantada para esta semana');
+  renderCron();
 }
 function toggleAllW(open){
   for(let i=0;i<WEEKS.length;i++){
@@ -1964,10 +2285,10 @@ function renderMap(cid,filterDisc){
       const grid=document.createElement('div');grid.className='sg';
       tits.forEach(t=>{
         const card=document.createElement('div');card.className=`sc ${mapCC(t)}`;
-        card.innerHTML=`<div class="rb"><div class="sc-name">${t.n}</div>${t.pct!==null?`<span style="font-size:10px;font-weight:600;color:${acColor(t.pct)}">${t.pct}%</span>`:''}</div>
+        card.innerHTML=`<div class="rb"><div class="sc-name" style="line-height:1.4">${ttHTML(t.n)}</div>${t.pct!==null?`<span style="font-size:10px;font-weight:600;color:${acColor(t.pct)}">${t.pct}%</span>`:''}</div>
           <div class="sc-meta"><span>Inc:${t.inc}</span><span class="st ${STAGE_CLASS[t.extStage]||'s-pend'}" style="margin-left:auto;font-size:9px">${STAGE_LABEL[t.extStage]||STAGE_LABEL[t.stage]||t.stage}</span></div>`;
-        card.onclick=()=>openTopicModal(t);
-        grid.appendChild(card);
+        card.onclick=(e)=>{if(e.target.closest('.tt-tog'))return;openTopicModal(t);};
+grid.appendChild(card);
       });
       sd.appendChild(grid);dd.appendChild(sd);
     });
@@ -1995,7 +2316,7 @@ function renderPerf(){
     .map(t=>({...t,risco:Math.round(t.inc*(100-(t.pct||0))/10)}))
     .sort((a,b)=>b.risco-a.risco).slice(0,20)
     .map(t=>`<tr>
-      <td style="font-weight:500">${t.n}</td>
+      <td style="font-weight:500">${ttHTML(t.n)}</td>
       <td><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span></td>
       <td style="text-align:center;font-weight:600">${t.inc}</td>
       <td><span style="font-weight:600;color:${acColor(t.pct)}">${t.pct}%</span></td>
@@ -2034,7 +2355,7 @@ function renderHist(){
   const TCL={CONTENT_SEEN:'tag-new',Q1_DONE:'tag-q',Q2_DONE:'tag-q',Q3_DONE:'tag-q',SPACED_REV:'tag-rev',THEORY_REV:'tag-rev',QUICK_REV:'tag-rev',ERROR_REV:'tag-rev',FINAL_REV:'tag-rev'};
   document.getElementById('hist-tbody').innerHTML=sess.map(s=>`<tr>
     <td style="font-size:10px;color:var(--t3);white-space:nowrap">${fmtD(s.data)}</td>
-    <td style="font-weight:500">${s.n}</td>
+    <td style="font-weight:500">${ttHTML(s.n)}</td>
     <td><span class="chip ${DISC_CHIP[s.disc]||'cdk'}">${s.disc}</span></td>
     <td><span class="tag ${TCL[s.tipo]||'tag-new'}">${TLB[s.tipo]||s.tipo}</span></td>
     <td style="text-align:center">${s.q||'—'}</td>
@@ -2129,7 +2450,7 @@ function doExportXLSX(){
     STATE.sessions.map(s=>({Data:s.data,Assunto:s.n,Área:s.disc,Tipo:s.tipo,Questões:s.q,Acertos:s.a,'%':s.q?safe_pct(s.a,s.q):0,Obs:s.obs}))),'Sessões');
   ['CLM','CLC','GO','PED','PREVENTIVA'].forEach(d=>{
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(
-      all.filter(t=>t.disc===d).map(t=>({Tópico:t.topico,Assunto:t.n,AMRIGS:t.am,AMP:t.ap,SANAR:t.sa,Score:t.inc,Stage:STAGE_LABEL[t.extStage]||t.extStage,Q:t.q,'Acerto%':t.pct||0,r1:t.r1||'',r2:t.r2||'',r3:t.r3||'',PróxRev:t.nextRev||'',Intervalo:t.revInterval||'',Prioridade:t.priority}))),d);
+      all.filter(t=>t.disc===d).map(t=>({Tópico:t.topico,Assunto:t.n,AMRIGS:t.am,AMP:t.ap,Score:t.inc,Stage:STAGE_LABEL[t.extStage]||t.extStage,Q:t.q,'Acerto%':t.pct||0,r1:t.r1||'',r2:t.r2||'',r3:t.r3||'',PróxRev:t.nextRev||'',Intervalo:t.revInterval||'',Prioridade:t.priority}))),d);
   });
   if(STATE.simulados.length) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(STATE.simulados),'Simulados');
   XLSX.writeFile(wb,'qg_residencia_'+ISO_TODAY+'.xlsx');
@@ -2445,6 +2766,24 @@ function renderHistSemanal(){
 }
 
 
+
+// ═══════════════════════════════════════════════════════
+// BANCA WEIGHTS CONFIG — Dynamic priority engine
+// ═══════════════════════════════════════════════════════
+const BANCA_DEFAULTS = {amrigs:1.0, amp:1.0};
+let BANCA_CFG = {...BANCA_DEFAULTS};
+
+function bancaLoadCfg(){
+  try{
+    const r=localStorage.getItem('qg_banca_cfg');
+    if(r){ const p=JSON.parse(r); BANCA_CFG={...BANCA_DEFAULTS,...p}; }
+  }catch(e){}
+}
+function bancaSaveCfg(){
+  try{ localStorage.setItem('qg_banca_cfg', JSON.stringify(BANCA_CFG)); }catch(e){}
+}
+bancaLoadCfg();
+
 // Safety: ensure all v5 fields exist
 if(!STATE.weekPlans)       STATE.weekPlans       = {};
 if(!STATE.weekExecution)   STATE.weekExecution   = {};
@@ -2472,7 +2811,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(sb){const l=document.createElement('div');l.style.cssText='margin-top:7px;cursor:pointer;font-size:10px;color:var(--blue)';l.textContent='👤 Minha conta';l.onclick=syncOpenSettings;sb.appendChild(l);}
 
 
-  srFillForm();
+srFillForm();
 });
 
 
@@ -2777,25 +3116,9 @@ afterSave = function() {
   }, 2000);
 };
 
-// ═══════════════════════════════════════════════════════
-// BANCA WEIGHTS CONFIG — Dynamic priority engine
-// ═══════════════════════════════════════════════════════
-const BANCA_DEFAULTS = {amrigs:1.0, amp:1.0, sanar:1.0};
-let BANCA_CFG = {...BANCA_DEFAULTS};
-
-function bancaLoadCfg(){
-  try{
-    const r=localStorage.getItem('qg_banca_cfg');
-    if(r){ const p=JSON.parse(r); BANCA_CFG={...BANCA_DEFAULTS,...p}; }
-  }catch(e){}
-}
-function bancaSaveCfg(){
-  try{ localStorage.setItem('qg_banca_cfg', JSON.stringify(BANCA_CFG)); }catch(e){}
-}
-
 function cfgBancaApply(){
   // Read slider values and normalize to weights (not percentages)
-  const keys = ['amrigs','amp','sanar'];
+  const keys = ['amrigs','amp'];
   const raw = {};
   let totalPct = 0;
   keys.forEach(k=>{
@@ -2819,12 +3142,11 @@ function cfgBancaApply(){
 }
 
 function cfgBancaPreset(mode){
-  const inputs = {amrigs:0, amp:0, sanar:0};
+  const inputs = {amrigs:0, amp:0}
   if(mode==='amrigs'){ inputs.amrigs=100; }
   else if(mode==='amp'){ inputs.amp=100; }
-  else if(mode==='equal'){ inputs.amrigs=34; inputs.amp=33; inputs.sanar=33; }
-  else if(mode==='sanar'){ inputs.sanar=70; inputs.amp=20; inputs.amrigs=10; }
-  ['amrigs','amp','sanar'].forEach(k=>{
+  else if(mode==='equal'){ inputs.amrigs=50; inputs.amp=50; }
+  ['amrigs','amp'].forEach(k=>{
     const el=document.getElementById('banca-'+k);
     const sv=document.getElementById('banca-slide-'+k);
     if(el){ el.value=inputs[k]; }
@@ -2842,7 +3164,7 @@ function cfgBancaReset(){
 }
 
 function cfgUpdateTotal(){
-  const keys=['amrigs','amp','sanar'];
+  const keys=['amrigs','amp'];
   let total=0;
   keys.forEach(k=>{
     const el=document.getElementById('banca-'+k);
@@ -2868,14 +3190,12 @@ function cfgRenderBancaSliders(){
   const bancas = [
     {k:'amrigs', label:'AMRIGS', color:'var(--blue)', desc:'Provas AMRIGS históricas'},
     {k:'amp',    label:'AMP',    color:'var(--teal)', desc:'Provas AMP históricas'},
-    {k:'sanar',  label:'SANAR',  color:'var(--pur)',  desc:'Banco de questões SANAR'},
   ];
   // Current % from BANCA_CFG (normalize back to %)
-  const total = BANCA_CFG.amrigs + BANCA_CFG.amp + BANCA_CFG.sanar;
+  const total = BANCA_CFG.amrigs + BANCA_CFG.amp;
   const pcts = {
     amrigs: total>0 ? safe_pct(BANCA_CFG.amrigs,total) : 34,
     amp:    total>0 ? safe_pct(BANCA_CFG.amp,total)    : 33,
-    sanar:  total>0 ? safe_pct(BANCA_CFG.sanar,total)  : 33,
   };
 
   const ct = document.getElementById('cfg-banca-sliders');
@@ -2936,6 +3256,8 @@ function cfgUpdatePriorityPreview(){
 }
 
 function renderConfig(){
+  examDateLoad();
+  discCfgRenderSliders();
   cfgRenderBancaSliders();
   srFillForm();
   spFillForm();
@@ -2961,8 +3283,7 @@ function renderConfig(){
   }
 }
 
-// Load on boot
-bancaLoadCfg();
+// Load on boot (moved to init sequence above)
 // ── Toast notification (non-intrusive feedback) ──────────────────────
 function _showToast(msg, duration=2200){
   let t=document.getElementById('_toast');
@@ -3001,17 +3322,15 @@ computeTopic = function(base){
   // Recompute inc with banca weights
   const inc_weighted = Math.round(
     (base.am||0) * BANCA_CFG.amrigs +
-    (base.ap||0) * BANCA_CFG.amp    +
-    (base.sa||0) * BANCA_CFG.sanar
-  );
-  // Recompute priority with weighted inc
+    (base.ap||0) * BANCA_CFG.amp
+  ); // SANAR removido
+  // Recompute priority com inc ponderado (urgency removido — incidência é fator dominante)
   const diffPenalty = result.pct!==null ? Math.max(0,100-result.pct) : 55;
   const stageW = {NOT_STARTED:0,CONTENT_SEEN:8,Q1_DONE:20,Q2_DONE:30,Q3_DONE:0}[result.stage]||0;
-  const urgency = result.revStatus==='late'?60:result.revStatus==='today'?40:result.revStatus==='week'?20:0;
-  const blockUrg = result.pendingBlocks.some(b=>b.overdue)?35:result.pendingBlocks.length?12:0;
+  const blockUrg = result.pendingBlocks.some(b=>b.overdue)?15:result.pendingBlocks.length?6:0;
   const proxMult = 1+Math.max(0,Math.min((1-DIAS_PROVA/540),0.5));
   const priority_w = Math.round(
-    (inc_weighted*2.5 + diffPenalty*0.4 + stageW + urgency + blockUrg + result.discWeight*50) * proxMult
+    (inc_weighted*3.5 + diffPenalty*0.4 + stageW + blockUrg + result.discWeight*50) * proxMult
   );
   return {...result, inc: inc_weighted, priority: priority_w};
 };
