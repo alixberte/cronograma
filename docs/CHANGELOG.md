@@ -135,6 +135,22 @@ Adicionado:
 
 ---
 
+## v2.2
+
+Adicionado:
+
+- Cadastro completo: nome completo, idade (15–99) e período (1º a 12º)
+- Tela de login com dois modos — "Entrar" e "Criar conta" (campos extras aparecem só no cadastro)
+- Perfil gravado em `users/{uid}.profile` no Firestore e `displayName` no Firebase Auth
+- Sidebar mostra nome real, iniciais no avatar e "Xº período · Y anos"
+- Saudação da página Hoje usa o nome real do usuário
+
+Corrigido:
+
+- `syncSave` usa `{merge:true}` — backup do STATE não apaga mais o campo profile do documento
+
+---
+
 ## Próxima Versão
 
 Planejado:
