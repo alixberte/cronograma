@@ -161,6 +161,30 @@ Adicionado:
 
 ---
 
+## v2.4
+
+Adicionado:
+
+- Snapshots semanais automáticos do progresso em `users/{uid}/backups/{segundaISO}` — criados no primeiro salvamento de cada semana, retenção dos 12 mais recentes
+- Seção "🕘 Backups semanais" no modal Minha conta: lista snapshots e permite restaurar qualquer um
+- Restauração segura: um backup "pre-restore" do estado atual é criado antes de substituir (máx. 3 retidos)
+
+Atenção (infra):
+
+- Requer atualização das regras do Firestore para cobrir subcoleções: `match /users/{uid}/{document=**}`
+
+---
+
+## v2.5
+
+Corrigido:
+
+- Migração de dados legados não é mais silenciosa: ao logar uma conta sem dados na nuvem num navegador com progresso antigo, o app PERGUNTA se deve importar — contas de teste não absorvem mais os dados do proprietário
+- Recusa é lembrada por conta (`qg_legacy_declined_<uid>`); os dados antigos nunca são apagados
+- Marcador global `qg_legacy_adopted` abandonado — a conta real do proprietário recebe a oferta de importação mesmo que outra conta tenha logado antes
+
+---
+
 ## Próxima Versão
 
 Planejado:
