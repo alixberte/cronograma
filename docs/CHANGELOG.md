@@ -161,6 +161,20 @@ Adicionado:
 
 ---
 
+## v2.4
+
+Adicionado:
+
+- Snapshots semanais automáticos do progresso em `users/{uid}/backups/{segundaISO}` — criados no primeiro salvamento de cada semana, retenção dos 12 mais recentes
+- Seção "🕘 Backups semanais" no modal Minha conta: lista snapshots e permite restaurar qualquer um
+- Restauração segura: um backup "pre-restore" do estado atual é criado antes de substituir (máx. 3 retidos)
+
+Atenção (infra):
+
+- Requer atualização das regras do Firestore para cobrir subcoleções: `match /users/{uid}/{document=**}`
+
+---
+
 ## Próxima Versão
 
 Planejado:
