@@ -101,6 +101,25 @@ Corrigido:
 
 ---
 
+## v2.0 — Plataforma multiusuário (Firebase)
+
+Adicionado:
+
+- Login com e-mail/senha via Firebase Authentication (criar conta, entrar, sair, redefinir senha)
+- Progresso salvo na nuvem (Firestore) vinculado ao login — documento `users/{uid}`
+- Tela de login cobre o app até autenticação; contas novas começam com progresso zerado
+- Cache local isolado por usuário (`qg_v5__<uid>`)
+- Migração automática: dados legados (pré-login) do navegador são adotados pela primeira conta que logar
+- Identidade dinâmica na sidebar e saudação (nome derivado do e-mail)
+- Modal "Minha conta" com salvar/recarregar/sair
+
+Removido:
+
+- Backend Google Apps Script (modal de configuração, código embutido, URL no localStorage)
+- Estado embutido do proprietário no HTML (dados de exemplo hardcoded)
+
+---
+
 ## Próxima Versão
 
 Planejado:

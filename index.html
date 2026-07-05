@@ -2,10 +2,13 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>QG Residência — Álix Djone Berté</title>
+<title>QG Residência</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -162,6 +165,14 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 .road-ph{border-left:2px solid;border-radius:0 var(--r) var(--r) 0;padding:8px 11px;margin-bottom:6px}
 .wk-dist-bar{display:flex;height:10px;border-radius:4px;overflow:hidden;gap:1px;margin-bottom:4px}
 .wk-dist-seg{height:100%;min-width:2px}
+.login-ov{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;align-items:center;justify-content:center}
+.login-card{background:var(--s);border:1px solid var(--b);border-radius:var(--r3);padding:26px 28px;width:340px;max-width:92vw}
+.login-logo{font-size:19px;font-weight:300;letter-spacing:-.02em;margin-bottom:2px}
+.login-sub{font-size:11px;color:var(--t3);margin-bottom:16px}
+.login-card input{width:100%;margin-bottom:8px;padding:8px 10px;font-size:13px}
+.login-err{font-size:11px;color:var(--rlt);background:var(--rl);border-radius:var(--r);padding:6px 9px;margin-bottom:8px;display:none}
+.login-btns{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.login-btns .btn{justify-content:center;padding:8px 11px;font-size:12px}
 .tt-tog{font-size:9px;color:var(--t3);cursor:pointer;margin-left:5px;font-weight:600;white-space:nowrap;user-select:none;display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:10px;background:var(--s2);border:1px solid var(--b2);transition:all .15s;vertical-align:middle}
 .tt-tog:hover{background:var(--t);color:#fff;border-color:var(--t)}
 .tt-sub{font-size:10.5px;color:var(--t3);font-weight:400;line-height:1.5;margin-top:5px;padding-top:5px;border-top:1px dotted var(--b2);animation:ttfade .18s ease}
@@ -171,29 +182,36 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 
 <body>
 
+<!-- LOGIN OVERLAY -->
+<div class="login-ov" id="login-ov">
+  <div class="login-card">
+    <div class="login-logo">QG Residência</div>
+    <div class="login-sub">Planejador adaptativo de estudos para Residência Médica</div>
+    <div id="login-loading" style="font-size:11px;color:var(--t3);padding:8px 0">⏳ Verificando sessão…</div>
+    <div id="login-form" style="display:none">
+      <div class="login-err" id="login-err"></div>
+      <input type="email" id="login-email" placeholder="E-mail" autocomplete="email">
+      <input type="password" id="login-pass" placeholder="Senha (mín. 6 caracteres)" autocomplete="current-password" onkeydown="if(event.key==='Enter')authLogin()">
+      <div class="login-btns">
+        <button class="btn btn-k" onclick="authLogin()">Entrar</button>
+        <button class="btn" onclick="authSignup()">Criar conta nova</button>
+        <button class="btn" style="border:none;font-size:10px;color:var(--t3)" onclick="authReset()">Esqueci minha senha</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Account / Sync -->
 <div class="modal-bg" id="m-sync">
-<div class="modal" style="width:480px">
-  <div class="modal-title">☁ Sincronização com Google Drive</div>
-  <div class="alert a-blu mb12" style="font-size:11px;line-height:1.8">
-    <strong>Como configurar (1 vez, 3 min):</strong><br>
-    1. Acesse <a href="https://script.google.com" target="_blank" style="color:var(--blue)">script.google.com</a> → Novo projeto → apague o código existente<br>
-    2. Clique <strong>"📋 Copiar Apps Script"</strong> abaixo → cole lá → salve (Ctrl+S)<br>
-    3. <strong>Implantar → Nova implantação</strong> → Tipo: Aplicativo da Web<br>
-    4. Executar como: <strong>Eu</strong> · Acesso: <strong>Qualquer pessoa</strong> → Implantar → autorize<br>
-    5. Copie a URL gerada e cole abaixo
-  </div>
-  <div class="mrow">
-    <label>URL do Web App</label>
-    <input type="text" id="sync-url-inp" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;font-size:11px">
-  </div>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Último sync: <span id="sync-last-val">nunca</span></div>
+<div class="modal" style="width:420px">
+  <div class="modal-title">👤 Minha conta</div>
+  <div style="font-size:12px;margin-bottom:4px">Logado como: <strong id="acct-email">—</strong></div>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:12px">Último sync: <span id="sync-last-val">nunca</span> · Seus dados ficam salvos na nuvem, vinculados ao seu login.</div>
   <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
-    <button class="btn btn-k" onclick="syncApplyUrl()">Conectar</button>
-    <button class="btn" onclick="syncLoad()">⬇ Carregar do Drive</button>
-    <button class="btn" onclick="syncSave()">⬆ Salvar no Drive</button>
-    <button class="btn" onclick="copyAppsScript()" style="background:var(--gl);color:var(--glt);border-color:#86efac">📋 Copiar Apps Script</button>
+    <button class="btn btn-k" onclick="syncSave()">⬆ Salvar agora</button>
+    <button class="btn" onclick="syncLoad()">⬇ Recarregar da nuvem</button>
+    <button class="btn" style="color:var(--red)" onclick="authLogout()">Sair da conta</button>
   </div>
-  <div class="alert a-grn" style="font-size:10px">✓ Sem login · Sem OAuth · Seus dados ficam no seu Google Drive</div>
   <div style="display:flex;justify-content:flex-end;margin-top:11px">
     <button class="btn" onclick="closeModal('m-sync')">Fechar</button>
   </div>
@@ -267,8 +285,8 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 <nav class="sb">
   <div class="sb-top">
     <div class="row mb8">
-      <div class="sb-av">ÁB</div>
-      <div><div class="sb-name">Álix Djone Berté</div><div class="sb-sub">AMRIGS · AMP · 2026</div></div>
+      <div class="sb-av" id="sb-user-av">—</div>
+      <div><div class="sb-name" id="sb-user-name">…</div><div class="sb-sub">AMRIGS · AMP · 2026</div></div>
     </div>
     <div class="sb-p">
       <div class="spl"><span>Domínio (Q3)</span><span id="sb-pct">—</span></div>
@@ -313,7 +331,7 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 <!-- HOJE -->
 <div class="page active" id="page-hoje">
   <div class="hero">
-    <h1 id="h-gr">Bom estudo, Álix.</h1><p id="h-sub">—</p>
+    <h1 id="h-gr">Bom estudo.</h1><p id="h-sub">—</p>
     <div class="hf"><div class="hfl">Próxima ação recomendada</div><div class="hft" id="h-next">—</div></div>
   </div>
   <div class="g2 mb14" style="gap:12px">
@@ -722,22 +740,6 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 
 <script src="planilha.js"></script>
 <script>
-(function(){
-  try{
-    // Load embedded state if localStorage is empty, wrong version, or has 0 sessions
-    const raw = localStorage.getItem('qg_v5') || localStorage.getItem('qg_v4');
-    let needLoad = !raw;
-    if(!needLoad){
-      try{
-        const p = JSON.parse(raw);
-        if(![4,5].includes(p.v) || !p.sessions || p.sessions.length === 0) needLoad = true;
-        // Ensure wkSnapshot field exists
-        if(!p.weekPlans) { p.weekPlans = {}; } if(!p.weekExecution) { p.weekExecution = {}; }
-      }catch(e){ needLoad = true; }
-    }
-    if(needLoad) localStorage.setItem('qg_v5', JSON.stringify({"sessions":[{"id":"u1779810041958","data":"2026-05-25","n":"Doenças Hipertensivas","disc":"GO","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810610506","data":"2026-05-25","n":"DIP","disc":"GO","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810118570","data":"2026-05-26","n":"Doenças Hipertensivas","disc":"GO","tipo":"Q1_DONE","q":15,"a":9,"obs":"Aprofundar"},{"id":"u1779810392088","data":"2026-05-26","n":"Osteoporose","disc":"CLM","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810534542","data":"2026-05-26","n":"Abdome agudo perfurativo","disc":"CLC","tipo":"CONTENT_SEEN","q":0,"a":0,"obs":""},{"id":"u1779810577398","data":"2026-05-26","n":"Abdome agudo hemorragico","disc":"CLC","tipo":"Q1_DONE","q":7,"a":5,"obs":""},{"id":"u1779810670990","data":"2026-05-26","n":"DIP","disc":"GO","tipo":"Q1_DONE","q":13,"a":9,"obs":""},{"id":"u1779810704729","data":"2026-05-26","n":"Bronquiolite","disc":"PED","tipo":"Q1_DONE","q":8,"a":8,"obs":""},{"id":"u1779810721204","data":"2026-05-26","n":"Coqueluche","disc":"PED","tipo":"Q1_DONE","q":7,"a":6,"obs":""},{"id":"u1779810758291","data":"2026-05-26","n":"Osteoporose","disc":"CLM","tipo":"Q1_DONE","q":15,"a":9,"obs":""},{"id":"u1779810810765","data":"2026-05-26","n":"Disturbios puberais","disc":"PED","tipo":"SPACED_REV","q":15,"a":11,"obs":""},{"id":"u1779834946330","data":"2026-05-26","n":"Imagenologia e Neoplasia de Mama","disc":"GO","tipo":"SPACED_REV","q":14,"a":13,"obs":""},{"id":"u1779810639006","data":"2026-05-27","n":"DIP","disc":"GO","tipo":"CONTENT_SEEN","q":13,"a":9,"obs":""},{"id":"u1779983593142","data":"2026-05-28","n":"Infecções Congênitas","disc":"PED","tipo":"SPACED_REV","q":15,"a":10,"obs":""},{"id":"u1779997834827","data":"2026-05-28","n":"Complicações cx e pós op","disc":"CLC","tipo":"Q3_DONE","q":15,"a":13,"obs":""},{"id":"u1780065251750","data":"2026-05-29","n":"Transtornos neurodesenvolvimento","disc":"PED","tipo":"SPACED_REV","q":15,"a":14,"obs":""}],"simulados":[],"weekExecution":{"2026-05-25":{"2026-05-25_SPACED_REV_GO::Vitalidade Fetal, Sofrimento Agudo e Crônico":{"completed":false,"completed_at":null},"2026-05-25_SPACED_REV_PREVENTIVA::Programas e Politicas":{"completed":false,"completed_at":null},"2026-05-25_SPACED_REV_CLM::HAS":{"completed":false,"completed_at":null},"2026-05-25_SPACED_REV_PED::Transtornos neurodesenvolvimento":{"completed":true,"completed_at":1780065268725}}},"weekPlans":{"2026-05-25":[{"type":"SPACED_REV","topicId":"PED::Transtornos neurodesenvolvimento","disc":"PED","n":"Transtornos neurodesenvolvimento","pct":64,"label":"🔴 Rev. atrasada: Transtornos neurodesenvolvimento (PED) — acerto 64%","explain":"Revisão espaçada vencida · acerto 64% · SM-2 intervalo 30d · prioridade 163","uid":"2026-05-25_SPACED_REV_PED::Transtornos neurodesenvolvimento","idx":0,"min":35},{"type":"SPACED_REV","topicId":"CLM::HAS","disc":"CLM","n":"HAS","pct":70,"label":"🔴 Rev. atrasada: HAS (CLM) — acerto 70%","explain":"Revisão espaçada vencida · acerto 70% · SM-2 intervalo 30d · prioridade 165","uid":"2026-05-25_SPACED_REV_CLM::HAS","idx":1,"min":35},{"type":"SPACED_REV","topicId":"GO::Vitalidade Fetal, Sofrimento Agudo e Crônico","disc":"GO","n":"Vitalidade Fetal, Sofrimento Agudo e Crônico","pct":54,"label":"🔴 Rev. atrasada: Vitalidade Fetal, Sofrimento Agudo e Crônico (GO) — acerto 54%","explain":"Revisão espaçada vencida · acerto 54% · SM-2 intervalo 15d · prioridade 167","uid":"2026-05-25_SPACED_REV_GO::Vitalidade Fetal, Sofrimento Agudo e Crônico","idx":2,"min":35},{"type":"SPACED_REV","topicId":"PREVENTIVA::Programas e Politicas","disc":"PREVENTIVA","n":"Programas e Politicas","pct":68,"label":"🔴 Rev. atrasada: Programas e Politicas (PREVENTIVA) — acerto 68%","explain":"Revisão espaçada vencida · acerto 68% · SM-2 intervalo 30d · prioridade 184","uid":"2026-05-25_SPACED_REV_PREVENTIVA::Programas e Politicas","idx":3,"min":35},{"type":"Q3_TASK","topicId":"CLC::Principios de anestesia","disc":"CLC","n":"Principios de anestesia","label":"⚠ Atrasado Q3: Principios de anestesia","explain":"Gerado auto: Q3 vence 25 de mar. (ATRASADO) · prioridade 193","uid":"2026-05-25_Q3_TASK_CLC::Principios de anestesia","idx":4,"min":35},{"type":"Q3_TASK","topicId":"PREVENTIVA::Estudos epidemiológicos","disc":"PREVENTIVA","n":"Estudos epidemiológicos","label":"⚠ Atrasado Q3: Estudos epidemiológicos","explain":"Gerado auto: Q3 vence 28 de abr. (ATRASADO) · prioridade 183","uid":"2026-05-25_Q3_TASK_PREVENTIVA::Estudos epidemiológicos","idx":5,"min":35},{"type":"Q3_TASK","topicId":"CLC::Feridas e Retalhos","disc":"CLC","n":"Feridas e Retalhos","label":"⚠ Atrasado Q3: Feridas e Retalhos","explain":"Gerado auto: Q3 vence 02 de mai. (ATRASADO) · prioridade 182","uid":"2026-05-25_Q3_TASK_CLC::Feridas e Retalhos","idx":6,"min":35},{"type":"NEW","topicId":"CLC::ATLS","disc":"CLC","n":"ATLS","label":"Questões Q1: ATLS (CLC)","explain":"Prioridade 117 · incidência 15 · peso CLC 21.1% · Conteúdo visto","uid":"2026-05-25_NEW_CLC::ATLS","idx":7,"min":90},{"type":"NEW","topicId":"PREVENTIVA::Med baseada e evidência","disc":"PREVENTIVA","n":"Med baseada e evidência","label":"Questões Q1: Med baseada e evidência (PREVENTIVA)","explain":"Prioridade 112 · incidência 13 · peso PREVENTIVA 24.6% · Conteúdo visto","uid":"2026-05-25_NEW_PREVENTIVA::Med baseada e evidência","idx":8,"min":90},{"type":"NEW","topicId":"CLM::Dist Equilíbrio Ácido Basico","disc":"CLM","n":"Dist Equilíbrio Ácido Basico","label":"Novo conteúdo: Dist Equilíbrio Ácido Basico (CLM)","explain":"Prioridade 97 · incidência 13 · peso CLM 20.7% · Não iniciado","uid":"2026-05-25_NEW_CLM::Dist Equilíbrio Ácido Basico","idx":9,"min":90},{"type":"NEW","topicId":"PED::Pneumonia comunitária","disc":"PED","n":"Pneumonia comunitária","label":"Novo conteúdo: Pneumonia comunitária (PED)","explain":"Prioridade 91 · incidência 12 · peso PED 18.0% · Não iniciado","uid":"2026-05-25_NEW_PED::Pneumonia comunitária","idx":10,"min":90}]},"heatmap":{"2026-05-25":2,"2026-05-26":12,"2026-05-27":1,"2026-05-28":10,"2026-05-29":3},"v":5,"weekHistory":{},"schedulerParams":{"minNew":50,"minQ1":30,"minQ2":30,"minQ3":30,"minRev":30,"hrsPerWk":15}}));
-  }catch(e){}
-})();
 
 // ═══════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════
@@ -990,9 +992,20 @@ function labelWithToggleId(label,frozenName,topicId){
 // weekExecution[wkISO]   = {uid: {completed:bool, completed_at:ts}}  — execution record
 let STATE = {sessions:[],simulados:[],weekPlans:{},weekExecution:{},weekHistory:{},schedulerParams:{minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15},heatmap:{},v:5};
 
+// Multi-user: cada usuário Firebase tem seu próprio cache local.
+// 'qg_v5' sem sufixo é o dado legado (pré-login) — migrado no primeiro login.
+let CURRENT_UID = localStorage.getItem('qg_last_uid') || null;
+function LS_KEY(){ return CURRENT_UID ? 'qg_v5__'+CURRENT_UID : 'qg_v5'; }
+
+function _emptyState(){
+  return {sessions:[],simulados:[],weekPlans:{},weekExecution:{},weekHistory:{},
+    schedulerParams:{minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15},heatmap:{},v:5};
+}
+
 function loadState(){
+  STATE = _emptyState();
   try{
-    const r = localStorage.getItem('qg_v5') || localStorage.getItem('qg_v4');
+    const r = localStorage.getItem(LS_KEY()) || (CURRENT_UID ? null : localStorage.getItem('qg_v4'));
     if(r){
       const p = JSON.parse(r);
       if(p.v === 5){
@@ -1078,8 +1091,8 @@ function migrateState(){
 
 function persistState(){
   try{
-    localStorage.setItem('qg_v5', JSON.stringify(STATE));
-    localStorage.removeItem('qg_v4'); // clean up old key
+    localStorage.setItem(LS_KEY(), JSON.stringify(STATE));
+    if(!CURRENT_UID) localStorage.removeItem('qg_v4'); // clean up old key
   }catch(e){}
 }
 // ── Planilha version migration ──────────────────────────────────────
@@ -1623,7 +1636,8 @@ function getWkSess(){
 
 function renderHoje(){
   const h=TODAY.getHours();
-  document.getElementById('h-gr').textContent=(h<12?'Bom dia':h<18?'Boa tarde':'Boa noite')+', Álix.';
+  var _gname=(document.getElementById('sb-user-name')||{}).textContent||'';
+  document.getElementById('h-gr').textContent=(h<12?'Bom dia':h<18?'Boa tarde':'Boa noite')+(_gname&&_gname!=='…'?', '+_gname+'.':'.');
   document.getElementById('h-sub').textContent=`${DIAS_PROVA} dias para a prova · ${Math.ceil(DIAS_PROVA/7)} semanas`;
   const all=computeAll();
   const top=[...all].sort((a,b)=>b.priority-a.priority)[0];
@@ -2669,7 +2683,6 @@ function spFillForm(){
 
 // ═══════════════════════════════════════════════════════
 // WEEK HISTORY RENDER
-// ═══════════════════════════════════════════════════════
 function renderWeekHistDetail(wkISO){
   var wh=STATE.weekHistory&&STATE.weekHistory[wkISO];
   if(!wh) return '<div class="empty">Semana não encontrada.</div>';
@@ -2687,9 +2700,9 @@ function renderWeekHistDetail(wkISO){
     var isDone=wh.completedTasks.some(function(c){return c.uid===k;});
     var dc=DISC_CHIP[t.disc]||'cdk';
     out+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--b)">'
-      +'<span style="font-size:13px;color:'+(isDone?'var(--grn)':'var(--t3)')+'">'+( isDone?'&#10003;':'&#9675;')+'</span>'
+      +'<span style="font-size:13px;color:'+(isDone?'var(--grn)':'var(--t3)')+'">'+(isDone?'&#10003;':'&#9675;')+'</span>'
       +'<span style="flex:1;font-size:11px;'+(isDone?'text-decoration:line-through;color:var(--t3)':'')+'">'+t.label+'</span>'
-      +'<span class="chip '+dc+'">'+( t.disc||'')+'</span></div>';
+      +'<span class="chip '+dc+'">'+(t.disc||'')+'</span></div>';
   });
   out+='</div>';
   if(wh.incompleteTasks.length){
@@ -2722,14 +2735,13 @@ function renderHistSemanal(){
 
   var ct=document.getElementById('hist-sem-list');
   if(!ct) return;
-  var wh=STATE.weekHistory||{};
-  var weeks=Object.keys(wh).sort(function(a,b){return b.localeCompare(a);});
-  if(!weeks.length){
+  var weeksSorted=Object.keys(wh).sort(function(a,b){return b.localeCompare(a);});
+  if(!weeksSorted.length){
     ct.innerHTML='<div class="empty">Nenhuma semana encerrada ainda.<br>'
       +'<span style="font-size:11px;color:var(--t3)">As semanas s&#227;o arquivadas automaticamente ao terminar.</span></div>';
     return;
   }
-  ct.innerHTML=weeks.map(function(wkISO){
+  ct.innerHTML=weeksSorted.map(function(wkISO){
     var h=wh[wkISO];
     var pC=h.completionRate>=80?'var(--grn)':h.completionRate>=50?'var(--amb)':'var(--red)';
     var bid='hwb'+wkISO.replace(/-/g,'');
@@ -2786,19 +2798,21 @@ renderHoje();
 document.getElementById('mr-al').innerHTML=PLANILHA.map(t=>`<option value="${t.n}">`).join('');
 
 
-const tr=document.querySelector('.tbl-r');
-if(tr){
-  const w=document.createElement('div');
-  w.style.cssText='display:flex;align-items:center;gap:5px;cursor:pointer';
-  w.onclick=syncOpenSettings;w.title='Sincronização com Google Drive';
-  w.innerHTML=`<span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0;display:inline-block"></span><span id="sync-lbl" style="font-size:10px;color:var(--t3);white-space:nowrap"></span><button id="sync-btn" class="btn btn-sm" onclick="event.stopPropagation();syncLoad()" style="padding:2px 6px;font-size:11px">↻</button>`;
-  tr.insertBefore(w,tr.lastElementChild);
-}
-const sb=document.querySelector('.sb-foot');
-if(sb){const l=document.createElement('div');l.style.cssText='margin-top:7px;cursor:pointer;font-size:10px;color:var(--blue)';l.textContent='☁ Configurar Drive sync';l.onclick=syncOpenSettings;sb.appendChild(l);}
+document.addEventListener('DOMContentLoaded',()=>{
+  const tr=document.querySelector('.tbl-r');
+  if(tr){
+    const w=document.createElement('div');
+    w.style.cssText='display:flex;align-items:center;gap:5px;cursor:pointer';
+    w.onclick=syncOpenSettings;w.title='Minha conta · sincronização na nuvem';
+    w.innerHTML=`<span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0;display:inline-block"></span><span id="sync-lbl" style="font-size:10px;color:var(--t3);white-space:nowrap"></span><button id="sync-btn" class="btn btn-sm" onclick="event.stopPropagation();syncLoad()" style="padding:2px 6px;font-size:11px">↻</button>`;
+    tr.insertBefore(w,tr.lastElementChild);
+  }
+  const sb=document.querySelector('.sb-foot');
+  if(sb){const l=document.createElement('div');l.style.cssText='margin-top:7px;cursor:pointer;font-size:10px;color:var(--blue)';l.textContent='👤 Minha conta';l.onclick=syncOpenSettings;sb.appendChild(l);}
 
 
 srFillForm();
+});
 
 
 
@@ -2810,46 +2824,53 @@ NAV=function(id,el){
   if(id==='config') setTimeout(renderConfig,0);
 };
 
-const APPS_SCRIPT_CODE="// ================================================================\n// QG Residência — Google Apps Script Backend\n// Salvar em: script.google.com → Novo projeto → colar este código\n// Publicar como: Web App → Executar como \"Eu\" → Acesso \"Qualquer pessoa\"\n// ================================================================\n\nconst FILE_NAME = 'qg_residencia_state.json';\nconst FOLDER_NAME = 'QG Residência Médica';\n\nfunction getOrCreateFolder() {\n  const folders = DriveApp.getFoldersByName(FOLDER_NAME);\n  if (folders.hasNext()) return folders.next();\n  return DriveApp.createFolder(FOLDER_NAME);\n}\n\nfunction getOrCreateFile() {\n  const folder = getOrCreateFolder();\n  const files = folder.getFilesByName(FILE_NAME);\n  if (files.hasNext()) return files.next();\n  return folder.createFile(FILE_NAME, '{}', MimeType.PLAIN_TEXT);\n}\n\nfunction doGet(e) {\n  try {\n    const file = getOrCreateFile();\n    const content = file.getBlob().getDataAsString();\n    return ContentService\n      .createTextOutput(content)\n      .setMimeType(ContentService.MimeType.JSON);\n  } catch(err) {\n    return ContentService\n      .createTextOutput(JSON.stringify({error: err.toString()}))\n      .setMimeType(ContentService.MimeType.JSON);\n  }\n}\n\nfunction doPost(e) {\n  try {\n    const data = e.postData.contents;\n    // Validate JSON\n    JSON.parse(data);\n    const file = getOrCreateFile();\n    file.setContent(data);\n    return ContentService\n      .createTextOutput(JSON.stringify({ok: true, saved: new Date().toISOString()}))\n      .setMimeType(ContentService.MimeType.JSON);\n  } catch(err) {\n    return ContentService\n      .createTextOutput(JSON.stringify({error: err.toString()}))\n      .setMimeType(ContentService.MimeType.JSON);\n  }\n}\n";
-function copyAppsScript(){
-  navigator.clipboard.writeText(APPS_SCRIPT_CODE).then(()=>{
-    const b=event.target;b.textContent='✓ Copiado!';setTimeout(()=>b.textContent='📋 Copiar Apps Script',2000);
-  }).catch(()=>{prompt('Copie o código:',APPS_SCRIPT_CODE);});
-}
+// ═══════════════════════════════════════════════════════
+// SYNC MODULE — Firebase (Auth + Firestore)
+// Cada usuário loga com e-mail/senha; o STATE inteiro fica em
+// users/{uid} no Firestore (campo "data", JSON serializado).
+// ═══════════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB4AWPXf7mkfD0seQYprF_C979pkfpo37g",
+  authDomain: "qg-residencia.firebaseapp.com",
+  projectId: "qg-residencia",
+  storageBucket: "qg-residencia.firebasestorage.app",
+  messagingSenderId: "919352202641",
+  appId: "1:919352202641:web:1f128c225d4aaf07ecf630"
+};
+firebase.initializeApp(FIREBASE_CONFIG);
+const AUTH = firebase.auth();
+const DB   = firebase.firestore();
 
-// ═══════════════════════════════════════════════════════
-// SYNC MODULE — Google Apps Script backend
-// Sem OAuth, sem hospedagem. Só uma URL de Web App.
-// ═══════════════════════════════════════════════════════
 const SYNC = {
-  url: localStorage.getItem('qg_sync_url') || '',
   status: 'idle',   // idle | syncing | ok | error
   lastSync: localStorage.getItem('qg_last_sync') || '',
-  dirty: false,     // unsaved local changes
-  AUTO_INTERVAL_MS: 30000,  // auto-save a cada 30s se dirty
+  dirty: false,
+  AUTO_INTERVAL_MS: 30000,
 };
 
-// ── Public API ────────────────────────────────────────
+function _userDoc(){
+  const u = AUTH.currentUser;
+  return u ? DB.collection('users').doc(u.uid) : null;
+}
+
+// ── Cloud save / load ─────────────────────────────────
 
 async function syncSave() {
-  if (!SYNC.url) return;
+  const ref = _userDoc();
+  if (!ref) return;
   SYNC.status = 'syncing';
   syncUpdateUI();
   try {
-    const r = await fetch(SYNC.url, {
-      method: 'POST',
-      body: JSON.stringify(STATE),
+    await ref.set({
+      data: JSON.stringify(STATE),
+      email: AUTH.currentUser.email || '',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      v: 5,
     });
-    const data = await r.json();
-    if (data.ok) {
-      SYNC.status = 'ok';
-      SYNC.dirty = false;
-      SYNC.lastSync = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      localStorage.setItem('qg_last_sync', SYNC.lastSync);
-    } else {
-      SYNC.status = 'error';
-      console.error('Sync save error:', data.error);
-    }
+    SYNC.status = 'ok';
+    SYNC.dirty = false;
+    SYNC.lastSync = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    localStorage.setItem('qg_last_sync', SYNC.lastSync);
   } catch(e) {
     SYNC.status = 'error';
     console.error('Sync save failed:', e);
@@ -2858,29 +2879,28 @@ async function syncSave() {
 }
 
 async function syncLoad() {
-  if (!SYNC.url) return false;
+  const ref = _userDoc();
+  if (!ref) return false;
   SYNC.status = 'syncing';
   syncUpdateUI();
   try {
-    const r = await fetch(SYNC.url + '?t=' + Date.now());
-    const remote = await r.json();
-    if (remote && (typeof remote.v === 'undefined' || remote.v >= 4)) {
-      const merged = syncMerge(STATE, remote);
-      STATE = merged;
-      persistState();
-      invalidateCache();
-      recomputeScheduler();
-      updateSidebar();
-      renderHoje();
-      SYNC.status = 'ok';
-      SYNC.lastSync = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      localStorage.setItem('qg_last_sync', SYNC.lastSync);
-      syncUpdateUI();
-      return true;
-    } else if (remote && remote.error) {
-      SYNC.status = 'error';
-      syncUpdateUI();
-      return false;
+    const snap = await ref.get();
+    if (snap.exists) {
+      const remote = JSON.parse(snap.data().data || '{}');
+      if (remote && (remote.v === 4 || remote.v === 5)) {
+        STATE = syncMerge(STATE, remote);
+        persistState();
+        invalidateCache();
+        migrateState();
+        recomputeScheduler();
+        updateSidebar();
+        renderHoje();
+        SYNC.status = 'ok';
+        SYNC.lastSync = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+        localStorage.setItem('qg_last_sync', SYNC.lastSync);
+        syncUpdateUI();
+        return true;
+      }
     }
     SYNC.status = 'ok';
     syncUpdateUI();
@@ -2926,10 +2946,124 @@ function syncMerge(local, remote) {
     weekPlans:weekPlans, weekHistory:weekHistory, schedulerParams:schedulerParams, heatmap:heatmap, v:5};
 }
 
-function syncSetUrl(url) {
-  SYNC.url = url.trim();
-  localStorage.setItem('qg_sync_url', SYNC.url);
+// ── Auth ──────────────────────────────────────────────
+
+const AUTH_ERR = {
+  'auth/invalid-email':'E-mail inválido.',
+  'auth/user-not-found':'Conta não encontrada. Confira o e-mail ou crie uma conta.',
+  'auth/wrong-password':'Senha incorreta.',
+  'auth/invalid-credential':'E-mail ou senha incorretos.',
+  'auth/email-already-in-use':'Este e-mail já tem conta. Use "Entrar".',
+  'auth/weak-password':'Senha fraca — use no mínimo 6 caracteres.',
+  'auth/too-many-requests':'Muitas tentativas. Aguarde alguns minutos.',
+  'auth/network-request-failed':'Sem conexão. Verifique sua internet.',
+};
+function _authErr(e){
+  var el=document.getElementById('login-err');
+  if(!el) return;
+  el.textContent = AUTH_ERR[e.code] || ('Erro: '+(e.message||e.code||e));
+  el.style.display='block';
 }
+function _authFields(){
+  return {
+    email:(document.getElementById('login-email')||{}).value||'',
+    pass:(document.getElementById('login-pass')||{}).value||'',
+  };
+}
+async function authLogin(){
+  var f=_authFields();
+  if(!f.email||!f.pass){ _authErr({code:'auth/invalid-credential'}); return; }
+  try{ await AUTH.signInWithEmailAndPassword(f.email.trim(), f.pass); }
+  catch(e){ _authErr(e); }
+}
+async function authSignup(){
+  var f=_authFields();
+  if(!f.email||f.pass.length<6){ _authErr({code:'auth/weak-password'}); return; }
+  try{ await AUTH.createUserWithEmailAndPassword(f.email.trim(), f.pass); }
+  catch(e){ _authErr(e); }
+}
+async function authReset(){
+  var f=_authFields();
+  if(!f.email){ _authErr({code:'auth/invalid-email'}); return; }
+  try{
+    await AUTH.sendPasswordResetEmail(f.email.trim());
+    var el=document.getElementById('login-err');
+    if(el){ el.textContent='E-mail de redefinição enviado. Confira sua caixa de entrada.'; el.style.display='block'; }
+  }catch(e){ _authErr(e); }
+}
+async function authLogout(){
+  closeModal('m-sync');
+  await AUTH.signOut();
+}
+
+function _setUserIdentity(user){
+  var name = user ? (user.displayName || (user.email||'').split('@')[0]) : '…';
+  var av = user ? name.split(/[\s._-]+/).filter(Boolean).slice(0,2).map(function(p){return p[0].toUpperCase();}).join('') : '—';
+  var nEl=document.getElementById('sb-user-name'); if(nEl) nEl.textContent=name;
+  var aEl=document.getElementById('sb-user-av');   if(aEl) aEl.textContent=av||'—';
+  var mEl=document.getElementById('acct-email');   if(mEl) mEl.textContent=user?(user.email||''):'—';
+}
+
+// Adota o usuário logado: carrega cache local dele, busca a nuvem,
+// migra dados legados (pré-login) uma única vez, e reconstrói tudo.
+async function _adoptUser(user){
+  CURRENT_UID = user.uid;
+  localStorage.setItem('qg_last_uid', user.uid);
+  loadState();  // re-lê localStorage com a chave do usuário
+
+  var ref = _userDoc();
+  var hasRemote = false;
+  try{ hasRemote = (await ref.get()).exists; }catch(e){ console.error(e); }
+
+  if(!hasRemote){
+    // Primeira vez desta conta na nuvem.
+    // Se este navegador tem dados legados (pré-Firebase) ainda não adotados, eles são deste usuário.
+    var legacy = localStorage.getItem('qg_v5');
+    if(legacy && !localStorage.getItem('qg_legacy_adopted')){
+      try{
+        var p = JSON.parse(legacy);
+        if(p && p.v===5 && (p.sessions||[]).length){
+          STATE = syncMerge(STATE, p);
+          localStorage.setItem('qg_legacy_adopted', user.uid);
+        }
+      }catch(e){}
+    }
+    persistState();
+    await syncSave();  // cria o documento na nuvem (novo usuário = progresso zerado)
+  } else {
+    await syncLoad();  // merge nuvem ↔ local
+  }
+
+  invalidateCache();
+  migrateState();
+  recomputeScheduler();
+  checkAndCloseWeeks();
+  _lastValidation=validateScheduler();
+  updateSidebar();
+  renderHoje();
+  var mrAl=document.getElementById('mr-al');
+  if(mrAl) mrAl.innerHTML=PLANILHA.map(function(t){return '<option value="'+t.n+'">';}).join('');
+}
+
+AUTH.onAuthStateChanged(async function(user){
+  var ov=document.getElementById('login-ov');
+  var ld=document.getElementById('login-loading');
+  var fm=document.getElementById('login-form');
+  if(user){
+    _setUserIdentity(user);
+    await _adoptUser(user);
+    if(ov) ov.style.display='none';
+    syncUpdateUI();
+  } else {
+    CURRENT_UID = null;
+    localStorage.removeItem('qg_last_uid');
+    _setUserIdentity(null);
+    if(ov) ov.style.display='flex';
+    if(ld) ld.style.display='none';
+    if(fm) fm.style.display='block';
+    var pe=document.getElementById('login-pass'); if(pe) pe.value='';
+  }
+});
 
 // ── UI ────────────────────────────────────────────────
 
@@ -2939,9 +3073,10 @@ function syncUpdateUI() {
   const btn  = document.getElementById('sync-btn');
   if (!dot) return;
 
+  const logged = !!AUTH.currentUser;
   const colors = { idle:'var(--t3)', syncing:'var(--amb)', ok:'var(--grn)', error:'var(--red)' };
   const labels = {
-    idle:    SYNC.url ? '☁ Drive conectado' : '☁ Drive não configurado',
+    idle:    logged ? '☁ Conectado' : '☁ Sem login',
     syncing: '⏳ Sincronizando...',
     ok:      `✓ Sync ${SYNC.lastSync}`,
     error:   '⚠ Erro de sync',
@@ -2956,29 +3091,14 @@ function syncUpdateUI() {
 
 function syncOpenSettings() {
   document.getElementById('m-sync').classList.add('open');
-  const inp = document.getElementById('sync-url-inp');
-  if (inp) inp.value = SYNC.url;
+  var u=AUTH.currentUser;
+  var mEl=document.getElementById('acct-email'); if(mEl) mEl.textContent=u?(u.email||''):'—';
   if (SYNC.lastSync) document.getElementById('sync-last-val').textContent = SYNC.lastSync;
-}
-
-async function syncApplyUrl() {
-  const inp = document.getElementById('sync-url-inp');
-  const url = inp?.value?.trim();
-  if (!url) { alert('Cole a URL do Web App aqui.'); return; }
-  syncSetUrl(url);
-  closeModal('m-sync');
-  // Test connection
-  const ok = await syncLoad();
-  if (!ok && SYNC.status !== 'error') {
-    // No remote data yet — do first save
-    await syncSave();
-  }
-  syncUpdateUI();
 }
 
 // Auto-save loop
 setInterval(() => {
-  if (SYNC.dirty && SYNC.url && SYNC.status !== 'syncing') {
+  if (SYNC.dirty && AUTH.currentUser && SYNC.status !== 'syncing') {
     syncSave();
   }
 }, SYNC.AUTO_INTERVAL_MS);
@@ -2992,17 +3112,9 @@ afterSave = function() {
   // Debounce: save after 2s of inactivity
   clearTimeout(SYNC._saveTimer);
   SYNC._saveTimer = setTimeout(() => {
-    if (SYNC.url) syncSave();
+    if (AUTH.currentUser) syncSave();
   }, 2000);
 };
-
-// On page load: auto-sync if URL already configured
-window.addEventListener('load', () => {
-  setTimeout(() => {
-    syncUpdateUI();
-    if (SYNC.url) syncLoad();
-  }, 600);
-});
 
 function cfgBancaApply(){
   // Read slider values and normalize to weights (not percentages)
