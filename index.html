@@ -190,11 +190,26 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
     <div id="login-loading" style="font-size:11px;color:var(--t3);padding:8px 0">⏳ Verificando sessão…</div>
     <div id="login-form" style="display:none">
       <div class="login-err" id="login-err"></div>
+      <div id="signup-fields" style="display:none">
+        <input type="text" id="login-nome" placeholder="Nome completo" autocomplete="name">
+        <div style="display:flex;gap:7px">
+          <input type="number" id="login-idade" placeholder="Idade" min="15" max="99" style="flex:1;min-width:0">
+          <select id="login-periodo" style="flex:1.6;margin-bottom:8px">
+            <option value="">Período…</option>
+            <option value="1">1º período</option><option value="2">2º período</option>
+            <option value="3">3º período</option><option value="4">4º período</option>
+            <option value="5">5º período</option><option value="6">6º período</option>
+            <option value="7">7º período</option><option value="8">8º período</option>
+            <option value="9">9º período</option><option value="10">10º período</option>
+            <option value="11">11º período</option><option value="12">12º período</option>
+          </select>
+        </div>
+      </div>
       <input type="email" id="login-email" placeholder="E-mail" autocomplete="email">
-      <input type="password" id="login-pass" placeholder="Senha (mín. 6 caracteres)" autocomplete="current-password" onkeydown="if(event.key==='Enter')authLogin()">
+      <input type="password" id="login-pass" placeholder="Senha (mín. 6 caracteres)" autocomplete="current-password" onkeydown="if(event.key==='Enter')authSubmit()">
       <div class="login-btns">
-        <button class="btn btn-k" onclick="authLogin()">Entrar</button>
-        <button class="btn" onclick="authSignup()">Criar conta nova</button>
+        <button class="btn btn-k" id="login-main-btn" onclick="authSubmit()">Entrar</button>
+        <button class="btn" id="login-alt-btn" onclick="authToggleMode()">Criar conta nova</button>
         <button class="btn" style="border:none;font-size:10px;color:var(--t3)" onclick="authReset()">Esqueci minha senha</button>
       </div>
     </div>
@@ -286,7 +301,7 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   <div class="sb-top">
     <div class="row mb8">
       <div class="sb-av" id="sb-user-av">—</div>
-      <div><div class="sb-name" id="sb-user-name">…</div><div class="sb-sub">AMRIGS · AMP · 2026</div></div>
+      <div><div class="sb-name" id="sb-user-name">…</div><div class="sb-sub" id="sb-user-sub">AMRIGS · AMP · 2026</div></div>
     </div>
     <div class="sb-p">
       <div class="spl"><span>Domínio (Q3)</span><span id="sb-pct">—</span></div>
@@ -2883,7 +2898,7 @@ async function syncSave() {
       email: AUTH.currentUser.email || '',
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       v: 5,
-    });
+    }, {merge:true}); // merge preserva o campo "profile" gravado no cadastro
     SYNC.status = 'ok';
     SYNC.dirty = false;
     SYNC.lastSync = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -2978,11 +2993,14 @@ const AUTH_ERR = {
   'auth/too-many-requests':'Muitas tentativas. Aguarde alguns minutos.',
   'auth/network-request-failed':'Sem conexão. Verifique sua internet.',
 };
-function _authErr(e){
+function _authMsg(t){
   var el=document.getElementById('login-err');
   if(!el) return;
-  el.textContent = AUTH_ERR[e.code] || ('Erro: '+(e.message||e.code||e));
+  el.textContent=t;
   el.style.display='block';
+}
+function _authErr(e){
+  _authMsg(AUTH_ERR[e.code] || ('Erro: '+(e.message||e.code||e)));
 }
 function _authFields(){
   return {
@@ -2990,6 +3008,24 @@ function _authFields(){
     pass:(document.getElementById('login-pass')||{}).value||'',
   };
 }
+
+// Perfil do usuário logado: {nome, idade, periodo} — gravado no cadastro,
+// carregado do Firestore no login (campo "profile" de users/{uid})
+let USER_PROFILE = null;
+let _signupMode = false;
+
+function authToggleMode(){
+  _signupMode=!_signupMode;
+  var sf=document.getElementById('signup-fields');
+  var mb=document.getElementById('login-main-btn');
+  var ab=document.getElementById('login-alt-btn');
+  if(sf) sf.style.display=_signupMode?'block':'none';
+  if(mb) mb.textContent=_signupMode?'Criar conta':'Entrar';
+  if(ab) ab.textContent=_signupMode?'Já tenho conta':'Criar conta nova';
+  var el=document.getElementById('login-err'); if(el) el.style.display='none';
+}
+function authSubmit(){ if(_signupMode){ authSignup(); } else { authLogin(); } }
+
 async function authLogin(){
   var f=_authFields();
   if(!f.email||!f.pass){ _authErr({code:'auth/invalid-credential'}); return; }
@@ -2998,9 +3034,22 @@ async function authLogin(){
 }
 async function authSignup(){
   var f=_authFields();
+  var nome=((document.getElementById('login-nome')||{}).value||'').trim();
+  var idade=parseInt((document.getElementById('login-idade')||{}).value||'',10);
+  var periodo=parseInt((document.getElementById('login-periodo')||{}).value||'',10);
+  if(!nome||nome.length<2){ _authMsg('Informe seu nome completo.'); return; }
+  if(!idade||idade<15||idade>99){ _authMsg('Informe uma idade válida (15–99).'); return; }
+  if(!periodo||periodo<1||periodo>12){ _authMsg('Selecione seu período (1º a 12º).'); return; }
   if(!f.email||f.pass.length<6){ _authErr({code:'auth/weak-password'}); return; }
-  try{ await AUTH.createUserWithEmailAndPassword(f.email.trim(), f.pass); }
-  catch(e){ _authErr(e); }
+  try{
+    var cred=await AUTH.createUserWithEmailAndPassword(f.email.trim(), f.pass);
+    await cred.user.updateProfile({displayName:nome});
+    USER_PROFILE={nome:nome, idade:idade, periodo:periodo};
+    await DB.collection('users').doc(cred.user.uid).set(
+      {profile:{nome:nome, idade:idade, periodo:periodo, criadoEm:new Date().toISOString()}},
+      {merge:true});
+    _setUserIdentity(AUTH.currentUser); // atualiza nome/avatar com o displayName recém-gravado
+  }catch(e){ _authErr(e); }
 }
 async function authReset(){
   var f=_authFields();
@@ -3017,11 +3066,16 @@ async function authLogout(){
 }
 
 function _setUserIdentity(user){
-  var name = user ? (user.displayName || (user.email||'').split('@')[0]) : '…';
+  if(!user) USER_PROFILE=null;
+  var name = user ? ((USER_PROFILE&&USER_PROFILE.nome) || user.displayName || (user.email||'').split('@')[0]) : '…';
   var av = user ? name.split(/[\s._-]+/).filter(Boolean).slice(0,2).map(function(p){return p[0].toUpperCase();}).join('') : '—';
   var nEl=document.getElementById('sb-user-name'); if(nEl) nEl.textContent=name;
   var aEl=document.getElementById('sb-user-av');   if(aEl) aEl.textContent=av||'—';
   var mEl=document.getElementById('acct-email');   if(mEl) mEl.textContent=user?(user.email||''):'—';
+  var sEl=document.getElementById('sb-user-sub');
+  if(sEl) sEl.textContent=(USER_PROFILE&&USER_PROFILE.periodo)
+    ? (USER_PROFILE.periodo+'º período · '+(USER_PROFILE.idade?USER_PROFILE.idade+' anos':''))
+    : 'AMRIGS · AMP · 2026';
 }
 
 // Adota o usuário logado: carrega cache local dele, busca a nuvem,
@@ -3033,7 +3087,13 @@ async function _adoptUser(user){
 
   var ref = _userDoc();
   var hasRemote = false;
-  try{ hasRemote = (await ref.get()).exists; }catch(e){ console.error(e); }
+  try{
+    var snap = await ref.get();
+    hasRemote = snap.exists;
+    // Perfil do cadastro (nome/idade/período) — pode não existir em contas antigas
+    var pd = hasRemote ? (snap.data()||{}) : {};
+    if(pd.profile){ USER_PROFILE=pd.profile; _setUserIdentity(user); }
+  }catch(e){ console.error(e); }
 
   if(!hasRemote){
     // Primeira vez desta conta na nuvem.
