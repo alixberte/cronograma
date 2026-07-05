@@ -120,6 +120,21 @@ Removido:
 
 ---
 
+## v2.1
+
+Corrigido:
+
+- Simulados agora fazem backup automático na nuvem (registrar/excluir marcavam apenas o localStorage)
+- Merge do login é empurrado de volta ao Firestore — alterações offline sobem imediatamente ao logar
+- Marcar/desmarcar tarefa da semana agora salva na nuvem em ~2s (antes só no ciclo de 30s)
+
+Adicionado:
+
+- Configurações de revisão espaçada (SR) e pesos de banca agora vivem no STATE (`srCfg`, `bancaCfg`) — sincronizam entre dispositivos e são isoladas por conta; localStorage vira fallback legado
+- `queueCloudSave()` — caminho único de backup: dirty + debounce 2s para toda mutação de STATE
+
+---
+
 ## Próxima Versão
 
 Planejado:
