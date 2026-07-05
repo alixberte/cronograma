@@ -852,10 +852,14 @@ function discCfgPreset(type){
 const SR_DEFAULTS = {gt90:90, gt80:60, gt70:45, gt60:30, lt60:15, default:30};
 let SR_CFG = {...SR_DEFAULTS};
 function srLoadCfg(){
+  // STATE.srCfg (sincronizado na nuvem) tem prioridade; localStorage é fallback legado.
+  // try/catch também cobre a 1ª chamada de boot, antes de STATE ser declarado.
+  try{ if(STATE.srCfg){ SR_CFG={...SR_DEFAULTS,...STATE.srCfg}; return; } }catch(e){}
   try{const r=localStorage.getItem('qg_sr_cfg');if(r){const p=JSON.parse(r);SR_CFG={...SR_DEFAULTS,...p};}}catch(e){}
 }
 function srSaveCfg(){
   try{localStorage.setItem('qg_sr_cfg',JSON.stringify(SR_CFG));}catch(e){}
+  try{ STATE.srCfg={...SR_CFG}; persistState(); queueCloudSave(); }catch(e){}
 }
 function srApply(){
   ['gt90','gt80','gt70','gt60','lt60'].forEach(f=>{
@@ -1114,6 +1118,7 @@ function persistState(){
 })();
 
 loadState();
+srLoadCfg(); // re-lê: agora com STATE disponível (config sincronizada vence a local)
 
 // ═══════════════════════════════════════════════════════
 // LAYER 4 — TOPIC STATE MACHINE
@@ -1870,7 +1875,7 @@ function toggleTask(wkISO, uid_or_idx, cb){
     completed_at: cb.checked ? now : null
   };
   persistState();
-  SYNC.dirty = true;
+  queueCloudSave();
 
   // Visual — only touch this card, no re-render
   const tl   = document.getElementById('stl-' + wkISO + '-' + key);
@@ -2406,10 +2411,10 @@ function addSim(){
   const obs=document.getElementById('si-obs').value;
   if(!data||!q||isNaN(a))return;
   STATE.simulados.push({id:'sim'+Date.now(),data,q,a,b,obs});
-  persistState();renderSims();
+  persistState();queueCloudSave();renderSims();
   ['si-d','si-q','si-a','si-obs'].forEach(i=>document.getElementById(i).value='');
 }
-function delSim(id){STATE.simulados=STATE.simulados.filter(s=>s.id!==id);persistState();renderSims();}
+function delSim(id){STATE.simulados=STATE.simulados.filter(s=>s.id!==id);persistState();queueCloudSave();renderSims();}
 
 // ═══════════════════════════════════════════════════════
 // LAYER 20 — EXPORT / IMPORT
@@ -2774,6 +2779,8 @@ const BANCA_DEFAULTS = {amrigs:1.0, amp:1.0};
 let BANCA_CFG = {...BANCA_DEFAULTS};
 
 function bancaLoadCfg(){
+  // STATE.bancaCfg (sincronizado na nuvem) tem prioridade; localStorage é fallback legado.
+  try{ if(STATE.bancaCfg){ BANCA_CFG={...BANCA_DEFAULTS,...STATE.bancaCfg}; return; } }catch(e){}
   try{
     const r=localStorage.getItem('qg_banca_cfg');
     if(r){ const p=JSON.parse(r); BANCA_CFG={...BANCA_DEFAULTS,...p}; }
@@ -2781,6 +2788,7 @@ function bancaLoadCfg(){
 }
 function bancaSaveCfg(){
   try{ localStorage.setItem('qg_banca_cfg', JSON.stringify(BANCA_CFG)); }catch(e){}
+  try{ STATE.bancaCfg={...BANCA_CFG}; persistState(); queueCloudSave(); }catch(e){}
 }
 bancaLoadCfg();
 
@@ -2851,6 +2859,15 @@ const SYNC = {
 function _userDoc(){
   const u = AUTH.currentUser;
   return u ? DB.collection('users').doc(u.uid) : null;
+}
+
+// Marca alteração pendente e agenda push para a nuvem em 2s (debounce).
+// Único caminho para backup automático — usar em TODA mutação de STATE.
+function queueCloudSave(){
+  SYNC.dirty = true;
+  syncUpdateUI();
+  clearTimeout(SYNC._saveTimer);
+  SYNC._saveTimer = setTimeout(() => { if (AUTH.currentUser) syncSave(); }, 2000);
 }
 
 // ── Cloud save / load ─────────────────────────────────
@@ -2942,8 +2959,11 @@ function syncMerge(local, remote) {
   var weekHistory    = Object.assign({}, remote.weekHistory||{},    local.weekHistory||{});
   var schedulerParams = Object.assign({minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15},
     remote.schedulerParams||{}, local.schedulerParams||{});
+  var srCfg    = Object.assign({}, remote.srCfg||{},    local.srCfg||{});
+  var bancaCfg = Object.assign({}, remote.bancaCfg||{}, local.bancaCfg||{});
   return {sessions:sessions, simulados:Object.values(simMap), weekExecution:weekExecution,
-    weekPlans:weekPlans, weekHistory:weekHistory, schedulerParams:schedulerParams, heatmap:heatmap, v:5};
+    weekPlans:weekPlans, weekHistory:weekHistory, schedulerParams:schedulerParams, heatmap:heatmap,
+    srCfg:srCfg, bancaCfg:bancaCfg, v:5};
 }
 
 // ── Auth ──────────────────────────────────────────────
@@ -3032,7 +3052,12 @@ async function _adoptUser(user){
     await syncSave();  // cria o documento na nuvem (novo usuário = progresso zerado)
   } else {
     await syncLoad();  // merge nuvem ↔ local
+    await syncSave();  // empurra o resultado do merge — alterações offline sobem já no login
   }
+
+  // Configurações sincronizadas (SR / banca) do STATE adotado
+  srLoadCfg();
+  bancaLoadCfg();
 
   invalidateCache();
   migrateState();
@@ -3107,13 +3132,7 @@ setInterval(() => {
 const _origAfterSave2 = afterSave;
 afterSave = function() {
   _origAfterSave2();
-  SYNC.dirty = true;
-  syncUpdateUI();
-  // Debounce: save after 2s of inactivity
-  clearTimeout(SYNC._saveTimer);
-  SYNC._saveTimer = setTimeout(() => {
-    if (AUTH.currentUser) syncSave();
-  }, 2000);
+  queueCloudSave();
 };
 
 function cfgBancaApply(){
