@@ -151,6 +151,16 @@ Corrigido:
 
 ---
 
+## v2.3
+
+Adicionado:
+
+- Edição de perfil no modal "Minha conta": nome, idade e período editáveis a qualquer momento
+- Mesmas validações do cadastro; feedback com toast e mensagens de erro no próprio modal
+- Alterações refletem imediatamente na sidebar, avatar e saudação, e sincronizam no Firestore
+
+---
+
 ## Próxima Versão
 
 Planejado:

@@ -222,6 +222,26 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   <div class="modal-title">👤 Minha conta</div>
   <div style="font-size:12px;margin-bottom:4px">Logado como: <strong id="acct-email">—</strong></div>
   <div style="font-size:10px;color:var(--t3);margin-bottom:12px">Último sync: <span id="sync-last-val">nunca</span> · Seus dados ficam salvos na nuvem, vinculados ao seu login.</div>
+  <hr class="dv">
+  <div style="font-size:11px;font-weight:600;margin-bottom:7px">Meu perfil</div>
+  <div class="mrow"><label>Nome completo</label><input type="text" id="acct-nome" autocomplete="name"></div>
+  <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:7px">
+    <div class="mrow"><label>Idade</label><input type="number" id="acct-idade" min="15" max="99"></div>
+    <div class="mrow"><label>Período</label>
+      <select id="acct-periodo" style="width:100%">
+        <option value="">—</option>
+        <option value="1">1º período</option><option value="2">2º período</option>
+        <option value="3">3º período</option><option value="4">4º período</option>
+        <option value="5">5º período</option><option value="6">6º período</option>
+        <option value="7">7º período</option><option value="8">8º período</option>
+        <option value="9">9º período</option><option value="10">10º período</option>
+        <option value="11">11º período</option><option value="12">12º período</option>
+      </select>
+    </div>
+  </div>
+  <div class="login-err" id="acct-err"></div>
+  <button class="btn btn-k btn-sm" id="acct-save-btn" onclick="profileSave()" style="margin-bottom:12px">💾 Salvar perfil</button>
+  <hr class="dv">
   <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
     <button class="btn btn-k" onclick="syncSave()">⬆ Salvar agora</button>
     <button class="btn" onclick="syncLoad()">⬇ Recarregar da nuvem</button>
@@ -3179,6 +3199,45 @@ function syncOpenSettings() {
   var u=AUTH.currentUser;
   var mEl=document.getElementById('acct-email'); if(mEl) mEl.textContent=u?(u.email||''):'—';
   if (SYNC.lastSync) document.getElementById('sync-last-val').textContent = SYNC.lastSync;
+  // Preenche o formulário de perfil com os dados atuais
+  var p=USER_PROFILE||{};
+  var nEl=document.getElementById('acct-nome');    if(nEl) nEl.value=p.nome||(u&&u.displayName)||'';
+  var iEl=document.getElementById('acct-idade');   if(iEl) iEl.value=p.idade||'';
+  var pEl=document.getElementById('acct-periodo'); if(pEl) pEl.value=p.periodo||'';
+  var eEl=document.getElementById('acct-err');     if(eEl) eEl.style.display='none';
+}
+
+function _acctMsg(t){
+  var el=document.getElementById('acct-err');
+  if(!el) return;
+  el.textContent=t;
+  el.style.display='block';
+}
+
+async function profileSave(){
+  var u=AUTH.currentUser;
+  if(!u){ _acctMsg('Você precisa estar logado.'); return; }
+  var nome=((document.getElementById('acct-nome')||{}).value||'').trim();
+  var idade=parseInt((document.getElementById('acct-idade')||{}).value||'',10);
+  var periodo=parseInt((document.getElementById('acct-periodo')||{}).value||'',10);
+  if(!nome||nome.length<2){ _acctMsg('Informe seu nome completo.'); return; }
+  if(!idade||idade<15||idade>99){ _acctMsg('Informe uma idade válida (15–99).'); return; }
+  if(!periodo||periodo<1||periodo>12){ _acctMsg('Selecione seu período (1º a 12º).'); return; }
+  var btn=document.getElementById('acct-save-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Salvando…'; }
+  try{
+    await u.updateProfile({displayName:nome});
+    USER_PROFILE=Object.assign({}, USER_PROFILE||{}, {nome:nome, idade:idade, periodo:periodo});
+    await DB.collection('users').doc(u.uid).set({profile:USER_PROFILE},{merge:true});
+    _setUserIdentity(u);
+    var eEl=document.getElementById('acct-err'); if(eEl) eEl.style.display='none';
+    if(((document.querySelector('.page.active')||{}).id||'')==='page-hoje') renderHoje();
+    _showToast('✓ Perfil atualizado');
+  }catch(e){
+    console.error('profileSave:', e);
+    _acctMsg('Erro ao salvar: '+(AUTH_ERR[e.code]||e.message||e.code||e));
+  }
+  if(btn){ btn.disabled=false; btn.textContent='💾 Salvar perfil'; }
 }
 
 // Auto-save loop
