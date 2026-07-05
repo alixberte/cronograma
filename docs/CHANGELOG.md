@@ -175,6 +175,16 @@ Atenção (infra):
 
 ---
 
+## v2.5
+
+Corrigido:
+
+- Migração de dados legados não é mais silenciosa: ao logar uma conta sem dados na nuvem num navegador com progresso antigo, o app PERGUNTA se deve importar — contas de teste não absorvem mais os dados do proprietário
+- Recusa é lembrada por conta (`qg_legacy_declined_<uid>`); os dados antigos nunca são apagados
+- Marcador global `qg_legacy_adopted` abandonado — a conta real do proprietário recebe a oferta de importação mesmo que outra conta tenha logado antes
+
+---
+
 ## Próxima Versão
 
 Planejado:

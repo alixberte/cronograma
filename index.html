@@ -3218,19 +3218,30 @@ async function _adoptUser(user){
 
   if(!hasRemote){
     // Primeira vez desta conta na nuvem.
-    // Se este navegador tem dados legados (pré-Firebase) ainda não adotados, eles são deste usuário.
+    // Se este navegador tem dados de estudo antigos (pré-Firebase), PERGUNTA
+    // antes de importar — nunca adota silenciosamente (conta nova = zero por padrão).
     var legacy = localStorage.getItem('qg_v5');
-    if(legacy && !localStorage.getItem('qg_legacy_adopted')){
+    var declined = localStorage.getItem('qg_legacy_declined_'+user.uid);
+    if(legacy && !declined){
       try{
         var p = JSON.parse(legacy);
-        if(p && p.v===5 && (p.sessions||[]).length){
-          STATE = syncMerge(STATE, p);
-          localStorage.setItem('qg_legacy_adopted', user.uid);
+        var nSess = (p && p.v===5 && Array.isArray(p.sessions)) ? p.sessions.length : 0;
+        if(nSess > 0){
+          var ok = confirm(
+            'Encontramos dados de estudo salvos neste navegador ('+nSess+' sessões).\n\n'
+            +'Deseja importar esse progresso para a conta '+(user.email||'')+'?\n\n'
+            +'OK = importar para esta conta\n'
+            +'Cancelar = começar do zero (os dados antigos não são apagados)');
+          if(ok){
+            STATE = syncMerge(STATE, p);
+          } else {
+            localStorage.setItem('qg_legacy_declined_'+user.uid, '1'); // não pergunta de novo para ESTA conta
+          }
         }
       }catch(e){}
     }
     persistState();
-    await syncSave();  // cria o documento na nuvem (novo usuário = progresso zerado)
+    await syncSave();  // cria o documento na nuvem
   } else {
     await syncLoad();  // merge nuvem ↔ local
     await syncSave();  // empurra o resultado do merge — alterações offline sobem já no login
