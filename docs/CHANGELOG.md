@@ -185,6 +185,16 @@ Corrigido:
 
 ---
 
+## v2.6
+
+Corrigido:
+
+- Conta nova agora começa 100% zerada: `computeTopic()` ignora os campos pessoais da PLANILHA (stage, q, a, pct, r1–r3, herdados da planilha Python do fundador) — todo progresso deriva exclusivamente das sessões do usuário logado
+- Histórico do fundador preservado: conversor `_planilhaBaselineSessions()` transforma o baseline da planilha em sessões reais (229 registros de 69 tópicos), importadas automaticamente 1x apenas nas contas em `OWNER_EMAILS`
+- Marcador `planilhaBaseline` sincroniza na nuvem (incluído no `syncMerge`) — importação não se repete entre dispositivos
+
+---
+
 ## Próxima Versão
 
 Planejado:
