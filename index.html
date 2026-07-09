@@ -2546,7 +2546,7 @@ function fullRebuildScheduler(){
   updateSidebar();
   var pid=(document.querySelector('.page.active')||{}).id||'';
   if(pid==='page-hoje')    renderHoje();
-  if(pid==='page-semana')  { /* semana board is frozen — just refresh metrics */ _updateSemExecution(Object.keys(STATE.weekPlans)[0]||''); }
+  if(pid==='page-semana')  renderSemana(); // re-renderiza o board (recongela se o plano foi apagado p/ replanejamento)
   if(pid==='page-cron')    renderCron();
   if(pid==='page-fila')    renderFila();
   if(pid==='page-revisoes')renderRevisoes();
@@ -2695,23 +2695,44 @@ function validateScheduler(){
 // ═══════════════════════════════════════════════════════
 // SCHEDULER PARAMS UI helpers
 // ═══════════════════════════════════════════════════════
+// O plano da semana atual é congelado na segunda-feira. Ao mudar parâmetros
+// do scheduler, oferece replanejar a semana corrente com a nova capacidade —
+// tarefas já concluídas que permanecerem no novo plano continuam marcadas
+// (weekExecution é indexado por uid estável wkISO_TYPE_topicId).
+function _spOfferReplanCurrentWeek(changed){
+  if(!changed) return;
+  var curISO=_mondayISO();
+  if(!STATE.weekPlans[curISO]) return;
+  if(confirm('Replanejar a semana atual com os novos parâmetros?\n\n'
+    +'OK = regenerar o plano desta semana agora\n'
+    +'Cancelar = aplicar apenas às próximas semanas')){
+    delete STATE.weekPlans[curISO];
+  }
+}
+
 function spApply(){
   var fields=['minNew','minQ1','minQ2','minQ3','minRev','hrsPerWk'];
   var sp=STATE.schedulerParams||{};
+  var before=JSON.stringify(sp);
   fields.forEach(function(f){
     var el=document.getElementById('sp-'+f);
     if(el){var v=parseInt(el.value);if(v>0) sp[f]=v;}
   });
   STATE.schedulerParams=sp;
+  _spOfferReplanCurrentWeek(JSON.stringify(sp)!==before);
   persistState();
+  queueCloudSave();
   fullRebuildScheduler();
   var btn=document.getElementById('sp-save-btn');
   if(btn){btn.textContent='✓ Salvo!';setTimeout(function(){btn.textContent='Salvar e recalcular';},2000);}
 }
 
 function spReset(){
+  var before=JSON.stringify(STATE.schedulerParams||{});
   STATE.schedulerParams={minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15};
+  _spOfferReplanCurrentWeek(JSON.stringify(STATE.schedulerParams)!==before);
   persistState();
+  queueCloudSave();
   spFillForm();
   fullRebuildScheduler();
 }

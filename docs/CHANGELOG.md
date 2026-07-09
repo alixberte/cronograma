@@ -195,6 +195,17 @@ Corrigido:
 
 ---
 
+## v2.7
+
+Corrigido:
+
+- Configurações → "Horas por semana" (e demais parâmetros do scheduler) agora podem ser aplicados à semana atual: ao salvar com mudanças, o app oferece replanejar a semana corrente — antes, o plano congelado da segunda-feira ignorava a nova capacidade até a semana seguinte
+- Tarefas já concluídas que permanecerem no novo plano continuam marcadas (uid estável)
+- `spApply()`/`spReset()` agora sincronizam na nuvem (`queueCloudSave`) — mudanças de parâmetros não ficavam apenas no localStorage
+- `fullRebuildScheduler()` re-renderiza o board da semana (antes só atualizava métricas de uma semana arbitrária)
+
+---
+
 ## Próxima Versão
 
 Planejado:
