@@ -298,6 +298,22 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   </div>
 </div></div>
 
+<!-- MODAL: Quick questions (registro rápido a partir da tarefa da semana) -->
+<div class="modal-bg" id="m-quick">
+<div class="modal" style="width:360px">
+  <div class="modal-title" id="mq-title">Registrar questões</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px" id="mq-sub">—</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+    <div class="mrow"><label>Questões feitas</label><input type="number" id="mq-q" min="0" placeholder="0" oninput="calcPct('mq')"></div>
+    <div class="mrow"><label>Acertos</label><input type="number" id="mq-a" min="0" placeholder="0" oninput="calcPct('mq')"></div>
+  </div>
+  <div class="mac" id="mq-mac" style="display:none"><div class="macv" id="mq-macv">—</div><div class="macl">acerto</div></div>
+  <div style="display:flex;gap:7px;margin-top:11px;justify-content:flex-end">
+    <button class="btn" onclick="closeModal('m-quick')">Cancelar</button>
+    <button class="btn btn-k" onclick="quickQSave()">Salvar e concluir</button>
+  </div>
+</div></div>
+
 <!-- MODAL: IO -->
 <div class="modal-bg" id="m-io">
 <div class="modal">
@@ -425,7 +441,14 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   </div>
   <div class="g2" style="gap:12px">
     <div>
-      <div class="rb mb8"><span style="font-size:12px;font-weight:600">Tarefas do scheduler</span><span class="chip cdk" id="sem-chip">—</span></div>
+      <div class="rb mb8">
+        <span style="font-size:12px;font-weight:600">Tarefas do scheduler</span>
+        <div class="row" style="gap:6px">
+          <button class="btn btn-sm" onclick="semRecalcular()" title="Recalcula a semana do zero com o estado atual e arquiva o progresso feito como semana anterior no Histórico Semanal. Ação irreversível.">↻ Recalcular esta semana</button>
+          <span class="chip cdk" id="sem-chip">—</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">💡 Clique numa tarefa para registrar as questões direto.</div>
       <div id="sem-tasks"></div>
       <button class="btn btn-sm mt8" id="sem-add-btn" onclick="semAddMore()" style="width:100%">➕ Adicionar mais uma tarefa</button>
       <div id="sem-due" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--b2);display:none"></div>
@@ -798,6 +821,17 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   <div class="card mt12">
     <div class="ch"><div class="ctt">🔍 Diagnóstico do sistema</div><button class="btn btn-sm" onclick="_lastValidation=validateScheduler();renderConfig()">↻ Verificar agora</button></div>
     <div id="cfg-validation-out"></div>
+  </div>
+
+  <!-- SECTION: Zona de perigo -->
+  <div class="card mt12" style="border-color:var(--red)">
+    <div class="ch"><div class="ctt" style="color:var(--red)">⚠ Zona de perigo</div></div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">
+      Apaga <strong>todo o seu progresso</strong> — sessões, cronograma, revisões, histórico semanal e simulados —
+      e recomeça do zero. Seu login e perfil (nome/idade/período) são mantidos.
+      Um backup de segurança é criado antes, na aba <em>Minha conta → Backups semanais</em>.
+    </div>
+    <button class="btn" onclick="resetAccount()" style="color:var(--red);border-color:var(--red)">🗑 Resetar conta e começar do zero</button>
   </div>
 </div>
 
@@ -1871,6 +1905,72 @@ function renderHoje(){
 // LAYER 11 — SEMANA
 // ═══════════════════════════════════════════════════════
 
+// Recalcula a semana do zero: arquiva o plano atual (com o progresso feito)
+// no Histórico Semanal e recongela a semana com o estado atual.
+function semRecalcular(){
+  var curISO=_mondayISO();
+  if(!confirm('Recalcular esta semana?\n\n'
+    +'• O progresso atual será ARQUIVADO no Histórico Semanal (como semana anterior)\n'
+    +'• A semana será recongelada do zero com base no seu estado atual\n\n'
+    +'Esta ação não pode ser desfeita.')) return;
+  if(STATE.weekPlans[curISO]){
+    _archiveWeek(curISO);              // move o plano+execução atuais para weekHistory
+    // marca a entrada como recalculada para diferenciar da semana que vai recongelar
+    if(STATE.weekHistory[curISO]){
+      STATE.weekHistory[curISO].label += ' (recalculada)';
+      STATE.weekHistory[curISO].recalculated = true;
+      // guarda sob chave alternativa para não colidir com a nova semana de mesmo ISO
+      STATE.weekHistory[curISO+'_recalc_'+Date.now()] = STATE.weekHistory[curISO];
+      delete STATE.weekHistory[curISO];
+    }
+  }
+  invalidateCache();
+  recomputeScheduler();                // recongela a semana atual (weekPlans[curISO] foi apagado)
+  checkAndCloseWeeks();
+  _lastValidation=validateScheduler();
+  persistState(); queueCloudSave();
+  updateSidebar();
+  renderSemana();
+  _showToast('↻ Semana recalculada · progresso anterior arquivado no histórico');
+}
+
+// Registro rápido de questões a partir de uma tarefa da semana (pop-up).
+var _quickCtx=null;
+function quickQ(wkISO, uid){
+  var plan=STATE.weekPlans[wkISO]||[];
+  var task=plan.find(function(t){return (t.uid||String(t.idx))===uid;});
+  if(!task) return;
+  // mapeia o tipo da tarefa para o tipo de sessão registrada
+  var TYPE_MAP={NEW:'CONTENT_SEEN',Q1_TASK:'Q1_DONE',Q2_TASK:'Q2_DONE',Q3_TASK:'Q3_DONE',SPACED_REV:'SPACED_REV'};
+  _quickCtx={wkISO:wkISO, uid:uid, n:task.n, disc:task.disc, tipo:TYPE_MAP[task.type]||'Q1_DONE'};
+  var TL={NEW:'Conteúdo novo',Q1_TASK:'Q1',Q2_TASK:'Q2',Q3_TASK:'Q3',SPACED_REV:'Revisão'};
+  document.getElementById('mq-title').textContent='Registrar: '+task.n;
+  document.getElementById('mq-sub').textContent=(TL[task.type]||task.type)+' · '+(task.disc||'');
+  document.getElementById('mq-q').value='';
+  document.getElementById('mq-a').value='';
+  document.getElementById('mq-mac').style.display='none';
+  document.getElementById('m-quick').classList.add('open');
+  setTimeout(function(){var el=document.getElementById('mq-q');if(el)el.focus();},50);
+}
+function quickQSave(){
+  if(!_quickCtx) return;
+  var q=+document.getElementById('mq-q').value||0;
+  var a=+document.getElementById('mq-a').value||0;
+  if(a>q) a=q;
+  var ctx=_quickCtx;
+  STATE.sessions.push({id:'u'+Date.now(),data:ISO_TODAY,n:ctx.n,disc:ctx.disc,tipo:ctx.tipo,q:q,a:a,obs:'(registro rápido)'});
+  if(!STATE.heatmap[ISO_TODAY]) STATE.heatmap[ISO_TODAY]=0;
+  STATE.heatmap[ISO_TODAY]++;
+  // marca a tarefa como concluída
+  if(!STATE.weekExecution[ctx.wkISO]) STATE.weekExecution[ctx.wkISO]={};
+  STATE.weekExecution[ctx.wkISO][ctx.uid]={completed:true,completed_at:Date.now(),source:'quick'};
+  afterSave();
+  closeModal('m-quick');
+  _quickCtx=null;
+  renderSemana();
+  _showToast('✓ '+q+' questões registradas'+(q>0?' · '+safe_pct(a,q)+'% acerto':''));
+}
+
 // Adiciona ao plano congelado da semana atual a próxima tarefa de maior
 // prioridade que ainda não está nele. Ordem: revisão atrasada > bloco devido
 // > revisão da semana > conteúdo novo (+ Q1). Permite ultrapassar a meta.
@@ -2032,8 +2132,10 @@ function renderSemana(){
     var k      = t.uid || String(t.idx);
     var isDone = !!(exec[k] && exec[k].completed);
     var wk     = curWk.wkISO;
-    return '<div class="tc '+(isDone?'done-c':'')+'" id="stc-'+wk+'-'+k+'"'+(isDone?' style="border-color:#86efac;"':'')+'>'+
+    return '<div class="tc '+(isDone?'done-c':'')+'" id="stc-'+wk+'-'+k+'"'+(isDone?' style="border-color:#86efac;"':'')+
+      ' onclick="if(event.target.closest(\'.tt-tog\')||event.target.type===\'checkbox\')return;quickQ(\''+wk+'\',\''+k+'\')" style="cursor:pointer">'+
       '<input type="checkbox"'+(isDone?' checked':'')+
+        ' onclick="event.stopPropagation()"'+
         ' onchange="toggleTask(\''+wk+'\',\''+k+'\',this)"'+
         ' style="margin-top:2px;flex-shrink:0">'+
       '<div class="tc-main">'+
@@ -2960,6 +3062,42 @@ function optReset(){
   queueCloudSave();
   optFillForm();
   fullRebuildScheduler();
+}
+
+// Zera todo o progresso do usuário (mantém login e perfil). Cria backup antes.
+async function resetAccount(){
+  if(!confirm('⚠ RESETAR CONTA\n\n'
+    +'Isto vai APAGAR todo o seu progresso: sessões, cronograma, revisões, '
+    +'histórico semanal e simulados.\n\nSeu login e perfil serão mantidos.\n\n'
+    +'Deseja continuar?')) return;
+  if(!confirm('Tem certeza? Esta ação é IRREVERSÍVEL.\n\n'
+    +'(Um backup de segurança será criado antes, em Minha conta → Backups semanais.)')) return;
+  try{
+    // Backup de segurança pré-reset (se logado)
+    var u=(typeof AUTH!=='undefined')?AUTH.currentUser:null;
+    if(u){
+      try{
+        await DB.collection('users').doc(u.uid).collection('backups')
+          .doc('pre-reset-'+ISO_TODAY).set({
+            data: JSON.stringify(STATE),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            sessions: (STATE.sessions||[]).length
+          });
+      }catch(e){ console.warn('pre-reset backup:', e); }
+    }
+    // Zera o estado (preserva versão do schema).
+    // planilhaBaseline=true impede a reimportação do histórico da planilha
+    // (contas do fundador) no próximo load — reset = realmente do zero.
+    STATE=_emptyState();
+    STATE.planilhaBaseline=true;
+    persistState();
+    if(u){ await syncSave(); }
+    _showToast('✓ Conta resetada — recomeçando do zero');
+    setTimeout(function(){ location.reload(); }, 900);
+  }catch(e){
+    console.error('resetAccount:', e);
+    alert('Erro ao resetar: '+(e.message||e));
+  }
 }
 
 // ═══════════════════════════════════════════════════════
