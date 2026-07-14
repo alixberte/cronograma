@@ -650,7 +650,7 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">
       <div>
         <label style="font-size:10px;font-weight:600;color:var(--t3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Conteúdo Novo (min)</label>
-        <input type="number" id="sp-minNew" min="10" max="180" style="width:90px" oninput="spFillForm()">
+        <input type="number" id="sp-minNew" min="10" max="180" style="width:90px">
       </div>
       <div>
         <label style="font-size:10px;font-weight:600;color:var(--t3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Q1 (min)</label>
@@ -1110,7 +1110,7 @@ function migrateState(){
       if(!Array.isArray(tasks)) return;
       tasks.forEach(function(t,i){
         if(!t.uid){ t.uid=wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i); dirty=true; }
-        if(!t.min){ t.min=t.type==='NEW'?80:t.type==='SPACED_REV'?30:30; dirty=true; }
+        if(!t.min){ t.min=_minForType(t.type); dirty=true; }
       });
     });
   }
@@ -1202,13 +1202,17 @@ function computeTopic(base){
     }
   }
 
+  // pct de DOMÍNIO = acerto acumulado de Q1+Q2+Q3 (nunca sobrescrito por revisão).
   if(q>0&&a>0) pct=safe_pct(a,q);
-  if(latestRevPct!==null) pct=latestRevPct;
+
+  // pct da REVISÃO: primeira revisão usa o acumulado Q1+Q2+Q3; a partir daí,
+  // cada intervalo é recalculado pelo acerto SOMENTE da última revisão feita.
+  const revPct = latestRevPct!==null ? latestRevPct : pct;
 
   // SPACED REPETITION (SM-2 simplified). Only after Q3_DONE.
   let nextRev=null, revInterval=null, revStatus='none', extStage=stage;
   if(stage==='Q3_DONE'){
-    const p=pct!==null?pct:70;
+    const p=revPct!==null?revPct:70;
     revInterval = p>90?SR_CFG.gt90 : p>80?SR_CFG.gt80 : p>70?SR_CFG.gt70 : p>60?SR_CFG.gt60 : SR_CFG.lt60;
     const baseDate = latestRevDate||r3;
     nextRev = addDays(baseDate, revInterval);
@@ -1217,7 +1221,7 @@ function computeTopic(base){
     else if(d<=3){revStatus='today'; extStage='REV_ACTIVE';}
     else if(d<=7){revStatus='week'; extStage='REV_ACTIVE';}
     else{revStatus='ok'; extStage=p>=85?'MASTERED':'REV_ACTIVE';}
-    if(pct!==null&&pct<65&&d<0) extStage='REV_CRITICAL';
+    if(revPct!==null&&revPct<65&&d<0) extStage='REV_CRITICAL';
   }
 
   // AUTO-GENERATED PENDING BLOCKS
@@ -1276,6 +1280,18 @@ function SP(){var p=STATE.schedulerParams||{};return {
   minRev:  p.minRev  ||30,
   hrsPerWk:p.hrsPerWk||15
 };}
+// Minutos por tipo de tarefa (fallback usado só quando t.min ausente — dados legados)
+function _minForType(type){
+  var sp=SP();
+  switch(type){
+    case 'NEW':       return sp.minNew;
+    case 'Q1_TASK':   return sp.minQ1;
+    case 'Q2_TASK':   return sp.minQ2;
+    case 'Q3_TASK':   return sp.minQ3;
+    case 'SPACED_REV':return sp.minRev;
+    default:          return sp.minRev;
+  }
+}
 const HRS_PER_WK=15; // fallback
 const MIN_NEW=90, MIN_BLOCK=35, MIN_REV=25; // fallback for non-scheduler code
 
@@ -1351,33 +1367,35 @@ function recomputeScheduler(){
     var _mNew = sp.minNew + sp.minQ1; // conteúdo novo = teoria + Q1 na mesma semana
 
     // 1. Overdue spaced revisions (always slot first)
-    for(let i=overdueRevs.length-1;i>=0&&min+MIN_REV<=CAP;i--){
+    for(let i=overdueRevs.length-1;i>=0&&min+_mRev<=CAP;i--){
       const t=overdueRevs.splice(i,1)[0];
-      tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,
+      tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
         label:`🔴 Rev. atrasada: ${t.n} (${t.disc}) — acerto ${t.pct!==null?t.pct+'%':'—'}`,
         explain:`Revisão espaçada vencida · acerto ${t.pct!==null?t.pct+'%':'—'} · SM-2 intervalo ${t.revInterval}d · prioridade ${t.priority}`});
-      min+=MIN_REV;
+      min+=_mRev;
     }
 
     // 2. Pending blocks (overdue first, then due this week)
-    for(let i=0;i<blockPool.length&&min+MIN_BLOCK<=CAP;){
+    for(let i=0;i<blockPool.length;){
       const t=blockPool[i];
       const blk=t.pendingBlocks.find(b=>b.overdue||(b.due>=wkISO&&b.due<=wkEndISO));
       if(blk){
-        tasks.push({type:blk.block+'_TASK',topicId:t.id,disc:t.disc,n:t.n,
+        const _mBlk=(blk.block==='Q2'?_mQ2:_mQ3);
+        if(min+_mBlk>CAP) break;
+        tasks.push({type:blk.block+'_TASK',topicId:t.id,disc:t.disc,n:t.n,min:_mBlk,
           label:`${blk.overdue?'⚠ Atrasado':'📅 Bloco'} ${blk.block}: ${t.n}`,
           explain:`Gerado auto: ${blk.block} vence ${fmtD(blk.due)}${blk.overdue?' (ATRASADO)':''} · prioridade ${t.priority}`});
-        min+=(blk.block==='Q2'?_mQ2:_mQ3);
+        min+=_mBlk;
         blockPool.splice(i,1);
       } else { i++; }
       if(tasks.filter(t=>['Q2_TASK','Q3_TASK'].includes(t.type)).length>=3) break;
     }
 
     // 3. Upcoming spaced revisions due this week
-    for(let i=0;i<upcomingRevs.length&&min+MIN_REV<=CAP;){
+    for(let i=0;i<upcomingRevs.length&&min+_mRev<=CAP;){
       const t=upcomingRevs[i];
       if(t.nextRev&&t.nextRev>=wkISO&&t.nextRev<=wkEndISO){
-        tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,
+        tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
           label:`Rev. espaçada: ${t.n} — ${fmtD(t.nextRev)}`,
           explain:`SM-2: próx. ${fmtD(t.nextRev)} · intervalo ${t.revInterval}d · acerto ${t.pct!==null?t.pct+'%':'—'}`});
         min+=_mRev;
@@ -1386,23 +1404,24 @@ function recomputeScheduler(){
     }
 
     // 4. New topics (max 4/week, proportional to disc weights)
-    if(min+MIN_NEW<=CAP&&newPool.length>0){
+    // "Conteúdo novo" = teoria (minNew) + Q1 na mesma semana (minQ1) = _mNew
+    if(min+_mNew<=CAP&&newPool.length>0){
       const discsUsed={};
       let newCount=0;
-      for(let i=0;i<newPool.length&&min+MIN_NEW<=CAP&&newCount<4;){
+      for(let i=0;i<newPool.length&&min+_mNew<=CAP&&newCount<4;){
         const t=newPool[i];
         const used=discsUsed[t.disc]||0;
         const target=Math.ceil((discW[t.disc]||0.2)*4); // proportional slot
         if(used<target){
           // Conteúdo novo (só se ainda não fez CONTENT_SEEN)
           if(t.stage!=='CONTENT_SEEN'){
-            tasks.push({type:'NEW',topicId:t.id,disc:t.disc,n:t.n,
+            tasks.push({type:'NEW',topicId:t.id,disc:t.disc,n:t.n,min:sp.minNew,
               label:`Novo conteúdo: ${t.n} (${t.disc})`,
               explain:`Prioridade ${t.priority} · incidência ${t.inc} · peso ${t.disc} ${((discW[t.disc]||0)*100).toFixed(1)}% · ${STAGE_LABEL[t.stage]}`});
             min+=sp.minNew;
           }
           // Q1 sempre gerado na mesma semana do conteúdo novo
-          tasks.push({type:'Q1_TASK',topicId:t.id,disc:t.disc,n:t.n,
+          tasks.push({type:'Q1_TASK',topicId:t.id,disc:t.disc,n:t.n,min:sp.minQ1,
             label:`Bloco Q1: ${t.n} (${t.disc})`,
             explain:`Q1 na mesma semana · incidência ${t.inc} · prioridade ${t.priority}`});
           min+=sp.minQ1;
@@ -1427,7 +1446,7 @@ function recomputeScheduler(){
         return Object.assign({},t,{
           uid: t.uid||(wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i)),
           idx: i,
-          min: t.min||(t.type==='NEW'?SP().minNew+SP().minQ1 : t.type==='SPACED_REV'?SP().minRev : t.type==='Q2_TASK'?SP().minQ2 : SP().minQ3)
+          min: t.min||_minForType(t.type)
         });
       });
     }
@@ -1782,7 +1801,7 @@ function renderSemana(){
       return Object.assign({},t,{
         uid: t.uid || (curWk.wkISO+'_'+(t.type||'x')+'_'+(t.topicId||t.n||i)),
         idx: i,
-        min: t.min || (t.type==='NEW'?SP().minNew:t.type==='Q1_TASK'?SP().minQ1:t.type==='Q2_TASK'?SP().minQ2:t.type==='Q3_TASK'?SP().minQ3:SP().minRev)
+        min: t.min || _minForType(t.type)
       });
     });
     persistState();
