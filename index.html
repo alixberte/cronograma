@@ -1470,8 +1470,10 @@ function recomputeScheduler(){
     var _mNew = sp.minNew + sp.minQ1; // conteúdo novo = teoria + Q1 na mesma semana
 
     // 1. Overdue spaced revisions (always slot first)
-    for(let i=overdueRevs.length-1;i>=0&&min+_mRev<=CAP;i--){
-      const t=overdueRevs.splice(i,1)[0];
+    // Consome do INÍCIO do pool (maior prioridade primeiro) — se a capacidade
+    // acabar, as menos importantes é que ficam para as próximas semanas.
+    while(overdueRevs.length&&min+_mRev<=CAP){
+      const t=overdueRevs.shift();
       tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
         label:`🔴 Rev. atrasada: ${t.n} (${t.disc}) — acerto ${t.pct!==null?t.pct+'%':'—'}`,
         explain:`Revisão espaçada vencida · acerto ${t.pct!==null?t.pct+'%':'—'} · SM-2 intervalo ${t.revInterval}d · prioridade ${t.priority}`});
@@ -1540,6 +1542,23 @@ function recomputeScheduler(){
           newPool.splice(i,1);
           newCount++;
         } else { i++; }
+      }
+    }
+
+    // 5. Antecipação de revisões: se o budget de conteúdo novo foi atingido e ainda
+    //    sobra capacidade até a meta, puxa revisões que venceriam nas PRÓXIMAS
+    //    semanas (as mais próximas do vencimento primeiro). Revisar antes nunca
+    //    prejudica — e mantém a semana na meta sem violar o % de conteúdo novo.
+    if(min+_mRev<=CAP&&upcomingRevs.length){
+      const future=[...upcomingRevs].filter(t=>t.nextRev&&t.nextRev>wkEndISO)
+        .sort((a,b)=>a.nextRev.localeCompare(b.nextRev));
+      for(const t of future){
+        if(min+_mRev>CAP) break;
+        tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
+          label:`Rev. antecipada: ${t.n} — venceria ${fmtD(t.nextRev)}`,
+          explain:`Antecipada p/ preencher a meta · SM-2 ${t.revInterval}d · acerto ${t.pct!==null?t.pct+'%':'—'}`});
+        min+=_mRev;
+        upcomingRevs.splice(upcomingRevs.indexOf(t),1);
       }
     }
 
@@ -1926,6 +1945,7 @@ function semRecalcular(){
   }
   invalidateCache();
   recomputeScheduler();                // recongela a semana atual (weekPlans[curISO] foi apagado)
+  _autoMatchSessionToWeekPlan(curISO); // sessões já feitas na semana marcam as tarefas equivalentes
   checkAndCloseWeeks();
   _lastValidation=validateScheduler();
   persistState(); queueCloudSave();
@@ -1958,7 +1978,10 @@ function quickQSave(){
   var a=+document.getElementById('mq-a').value||0;
   if(a>q) a=q;
   var ctx=_quickCtx;
-  STATE.sessions.push({id:'u'+Date.now(),data:ISO_TODAY,n:ctx.n,disc:ctx.disc,tipo:ctx.tipo,q:q,a:a,obs:'(registro rápido)'});
+  // Tarefa NEW com questões → registra como Q1_DONE (questões em CONTENT_SEEN
+  // não contam no % de domínio; teoria + questões = Q1 feito, regra pedagógica)
+  var tipo=(ctx.tipo==='CONTENT_SEEN'&&q>0)?'Q1_DONE':ctx.tipo;
+  STATE.sessions.push({id:'u'+Date.now(),data:ISO_TODAY,n:ctx.n,disc:ctx.disc,tipo:tipo,q:q,a:a,obs:'(registro rápido)'});
   if(!STATE.heatmap[ISO_TODAY]) STATE.heatmap[ISO_TODAY]=0;
   STATE.heatmap[ISO_TODAY]++;
   // marca a tarefa como concluída
@@ -2009,15 +2032,35 @@ function semAddMore(){
         label:(blk.overdue?'⚠ Atrasado ':'📅 Bloco ')+blk.block+': '+cand.n,
         explain:'Adicionado manualmente · '+blk.block+' vence '+fmtD(blk.due)});
     } else {
-      // 3. revisão que vence nesta semana
+      // 3. revisão que vence nesta semana — ou ANTECIPA a próxima a vencer
       cand=all.filter(function(t){return !inPlan[t.id]&&t.nextRev&&t.nextRev>=curISO&&t.nextRev<=wkEnd&&t.revStatus!=='late';})
         .sort(function(a,b){return b.priority-a.priority;})[0];
-      if(cand){
+      if(!cand){
+        cand=all.filter(function(t){return !inPlan[t.id]&&t.nextRev&&t.nextRev>wkEnd;})
+          .sort(function(a,b){return a.nextRev.localeCompare(b.nextRev);})[0];
+        if(cand){
+          pushTask({type:'SPACED_REV',topicId:cand.id,disc:cand.disc,n:cand.n,pct:cand.pct,min:sp.minRev,
+            label:'Rev. antecipada: '+cand.n+' — venceria '+fmtD(cand.nextRev),
+            explain:'Antecipada manualmente · intervalo '+cand.revInterval+'d'});
+          cand._handled=true;
+        }
+      } else {
         pushTask({type:'SPACED_REV',topicId:cand.id,disc:cand.disc,n:cand.n,pct:cand.pct,min:sp.minRev,
           label:'Rev. espaçada: '+cand.n+' — '+fmtD(cand.nextRev),
           explain:'Adicionado manualmente · intervalo '+cand.revInterval+'d'});
-      } else {
-        // 4. conteúdo novo + Q1
+        cand._handled=true;
+      }
+      if(!cand){
+        // 4. conteúdo novo + Q1 — respeita o limite de % de conteúdo novo da semana
+        var newBudget=Math.floor(sp.hrsPerWk*60*(sp.maxNewPct/100));
+        var newMinInPlan=plan.reduce(function(s,t){
+          return s+((t.type==='NEW'||t.type==='Q1_TASK')?(t.min||_minForType(t.type)):0);
+        },0);
+        var newCost=sp.minNew+sp.minQ1;
+        if(newMinInPlan+newCost>newBudget){
+          _showToast('Limite de '+sp.maxNewPct+'% de conteúdo novo atingido — sem revisões disponíveis para adicionar');
+          return;
+        }
         cand=all.filter(function(t){return !inPlan[t.id]&&(t.stage==='CONTENT_SEEN'||t.stage==='NOT_STARTED');})
           .sort(function(a,b){return b.priority-a.priority;})[0];
         if(cand){
@@ -2133,11 +2176,11 @@ function renderSemana(){
     var isDone = !!(exec[k] && exec[k].completed);
     var wk     = curWk.wkISO;
     return '<div class="tc '+(isDone?'done-c':'')+'" id="stc-'+wk+'-'+k+'"'+(isDone?' style="border-color:#86efac;"':'')+
-      ' onclick="if(event.target.closest(\'.tt-tog\')||event.target.type===\'checkbox\')return;quickQ(\''+wk+'\',\''+k+'\')" style="cursor:pointer">'+
-      '<input type="checkbox"'+(isDone?' checked':'')+
-        ' onclick="event.stopPropagation()"'+
-        ' onchange="toggleTask(\''+wk+'\',\''+k+'\',this)"'+
-        ' style="margin-top:2px;flex-shrink:0">'+
+      ' onclick="if(event.target.closest(\'.tt-tog\'))return;quickQ(\''+wk+'\',\''+k+'\')" style="cursor:pointer"'+
+      ' title="'+(isDone?'Concluída · registrada':'Clique para registrar as questões e concluir')+'">'+
+      // Indicador (somente leitura): o check aparece apenas mediante registro da atividade
+      '<input type="checkbox"'+(isDone?' checked':'')+' disabled'+
+        ' style="margin-top:2px;flex-shrink:0;pointer-events:none;opacity:'+(isDone?'1':'.45')+'">'+
       '<div class="tc-main">'+
         '<div class="tc-title '+(isDone?'crossed':'')+'" id="stl-'+wk+'-'+k+'">'+labelWithToggleId(t.label,t.n,t.topicId)+'</div>'+
         '<div class="tc-meta">'+
@@ -2446,7 +2489,8 @@ function renderCron(){
                 'flex-shrink:0;margin-left:2px">&#8593; Adiantar</button>'
               : '';
             return '<div class="wktask">'+
-              '<input type="checkbox"'+(isDone?' checked':'')+' onchange="toggleTask(\''+w.wkISO+'\',\''+k+'\',this)">'+
+              // Indicador: conclusão só mediante registro da atividade (Esta semana / popup)
+              '<input type="checkbox"'+(isDone?' checked':'')+' disabled style="pointer-events:none;opacity:'+(isDone?'1':'.45')+'">'+
               '<div style="flex:1">'+
                 '<div class="wktl '+(isDone?'done':'')+'" id="stl-'+w.wkISO+'-'+k+'">'+labelWithToggleId(t.label,t.n,t.topicId)+'</div>'+
                 '<div style="font-size:9px;color:var(--t3);margin-top:1px">'+(t.explain||'')+'</div>'+
@@ -2702,7 +2746,7 @@ function delSess(id){
     (STATE.weekPlans[wkISO]||[]).forEach(function(task){
       if(task.n!==sess.n) return;
       var k=task.uid||String(task.idx||0);
-      if(ex[k]&&ex[k].source==='auto_match') delete ex[k];
+      if(ex[k]&&(ex[k].source==='auto_match'||ex[k].source==='quick')) delete ex[k];
     });
     _autoMatchSessionToWeekPlan(wkISO);
   });

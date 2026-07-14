@@ -257,6 +257,23 @@ Adicionado:
 
 ---
 
+## v3.2
+
+Corrigido:
+
+- **"Adicionar mais" agora respeita o limite de % de conteúdo novo** — era a causa do limite parecer ignorado após recalcular a semana: cada clique adicionava NEW+Q1 sem checar o budget. Agora antecipa revisões primeiro e, se só restar conteúdo novo além do limite, avisa e não adiciona
+- **Revisões atrasadas na ordem certa**: o scheduler consumia o pool de trás para frente, agendando as de MENOR prioridade primeiro — corrigido (maior prioridade primeiro)
+- **`delSess` desfaz check do registro rápido**: entradas `source:'quick'` agora são limpas ao excluir a sessão (antes só `auto_match`)
+
+Alterado:
+
+- **Check somente mediante registro**: as caixas de seleção em "Esta semana" e no Cronograma viram indicadores (desabilitadas) — a tarefa é riscada apenas ao registrar a atividade, pelo pop-up (clique na tarefa) ou pelo painel lateral (auto-match)
+- **Seção 5 do scheduler — antecipação de revisões**: quando o budget de conteúdo novo é atingido e sobra capacidade até a meta, o scheduler puxa revisões que venceriam nas próximas semanas (mais próximas do vencimento primeiro) — a semana atinge a meta sem violar o % de novo
+- Registro rápido em tarefa NEW com questões informadas grava como `Q1_DONE` (questões em `CONTENT_SEEN` não contavam no % de domínio)
+- `semRecalcular` roda o auto-match imediatamente após recongelar — sessões já feitas na semana marcam as tarefas equivalentes na hora
+
+---
+
 ## Próxima Versão
 
 Planejado:
