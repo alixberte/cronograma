@@ -234,6 +234,19 @@ Adicionado:
 
 ---
 
+## v3.0 — Otimização de estudos
+
+Adicionado (nova seção "🧠 Otimização de estudos" em Configurações):
+
+- **Limite de conteúdo novo por semana (%)**: no máximo `maxNewPct`% da capacidade da semana em conteúdo novo (padrão 60%); o restante fica para revisão/blocos — protege a retenção mesmo com horas altas
+- **Reta final sem conteúdo novo**: nas últimas `rampDownWeeks` semanas antes da prova (padrão 4), o scheduler corta conteúdo novo e prioriza revisão/blocos (requer data da prova configurada)
+- **Interleaving de disciplinas**: as tarefas da semana são intercaladas por disciplina (round-robin) em vez de agrupadas — reduz blocagem e melhora retenção
+- **Fator de facilidade (SM-2)**: o intervalo de revisão, cuja base é o acerto da última revisão, é modulado pela consistência do histórico — quem acerta consistentemente espaça mais; quem oscila/erra encurta (multiplicador 0,7–1,6)
+
+Todos os quatro são configuráveis e sincronizam na nuvem via `STATE.schedulerParams`.
+
+---
+
 ## Próxima Versão
 
 Planejado:
