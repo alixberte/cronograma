@@ -195,6 +195,32 @@ Corrigido:
 
 ---
 
+## v2.7
+
+Corrigido:
+
+- Configurações → "Horas por semana" (e demais parâmetros do scheduler) agora podem ser aplicados à semana atual: ao salvar com mudanças, o app oferece replanejar a semana corrente — antes, o plano congelado da segunda-feira ignorava a nova capacidade até a semana seguinte
+- Tarefas já concluídas que permanecerem no novo plano continuam marcadas (uid estável)
+- `spApply()`/`spReset()` agora sincronizam na nuvem (`queueCloudSave`) — mudanças de parâmetros não ficavam apenas no localStorage
+- `fullRebuildScheduler()` re-renderiza o board da semana (antes só atualizava métricas de uma semana arbitrária)
+
+---
+
+## v2.8
+
+Corrigido:
+
+- Configurações: campo "Conteúdo Novo (min)" agora é editável — removido `oninput="spFillForm()"` que reescrevia o campo a cada tecla
+- "Horas por semana" agora bate com o calculado em "Esta semana": cada tarefa recebe seu tempo real (`min`) no momento da geração; o congelamento e a soma da semana usam esse valor em vez de fallbacks que inflavam o par NEW+Q1 (80→110 min)
+- Testes de capacidade do scheduler passam a usar os valores configurados (`sp.minRev/minQ2/minQ3/minNew+minQ1`) em vez das constantes fixas `MIN_REV=25/MIN_BLOCK=35/MIN_NEW=90` — "cabe?" e "gasta" agora são idênticos
+- `_minForType()` unifica o fallback de minutos por tipo de tarefa (dados legados)
+
+Alterado:
+
+- Revisão espaçada: o % de acerto de domínio passa a ser sempre a soma de Q1+Q2+Q3 (não é mais sobrescrito pela última revisão). O intervalo da 1ª revisão usa esse acumulado; cada revisão seguinte recalcula o intervalo pelo acerto SOMENTE da última revisão (variável `revPct` separada de `pct`)
+
+---
+
 ## Próxima Versão
 
 Planejado:
