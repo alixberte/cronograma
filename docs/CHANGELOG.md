@@ -274,6 +274,17 @@ Alterado:
 
 ---
 
+## v3.3
+
+Corrigido:
+
+- **Conteúdo novo garantido por semana (piso)**: era a causa de "Recalcular esta semana" não trazer conteúdos novos. O parâmetro de otimização era só um TETO (`maxNewPct`), e as revisões/blocos (processados antes) consumiam todo o CAP — sobrava 0 para conteúdo novo em semanas carregadas
+- Novo parâmetro **"Mín. conteúdos novos + Q1 / semana"** (`minNewCount`, padrão 2): a capacidade desse mínimo é RESERVADA antes das revisões/blocos, garantindo que toda semana avance em matéria nova
+- Scheduler reestruturado: reserva de piso → revisões/blocos limitados a `CAP − reservado` → conteúdo novo (piso garantido + até o teto `maxNewPct`) → preenche o restante até a meta drenando revisões (atrasadas → semana → antecipadas)
+- Simulação (semana com 40 revisões atrasadas): antes 0 novos; agora 2 novos garantidos + semana cheia até a meta
+
+---
+
 ## Próxima Versão
 
 Planejado:
