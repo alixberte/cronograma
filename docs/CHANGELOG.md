@@ -247,6 +247,16 @@ Todos os quatro são configuráveis e sincronizam na nuvem via `STATE.schedulerP
 
 ---
 
+## v3.1
+
+Adicionado:
+
+- **Botão "↻ Recalcular esta semana"** em "Esta semana": arquiva o plano atual (com o progresso feito) no Histórico Semanal e recongela a semana do zero com o estado atual. Tooltip explicativo + confirmação (ação irreversível)
+- **Pop-up de registro rápido**: clicar numa tarefa da semana abre um modal enxuto para inserir questões/acertos, cria a sessão (tipo derivado da tarefa) e marca a tarefa como concluída — sem precisar do painel à direita
+- **Resetar conta** (Configurações → Zona de perigo, em vermelho): apaga todo o progresso e recomeça do zero, mantendo login e perfil. Dupla confirmação + backup de segurança automático (`pre-reset`) antes de apagar
+
+---
+
 ## Próxima Versão
 
 Planejado:
