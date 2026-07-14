@@ -427,6 +427,7 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
     <div>
       <div class="rb mb8"><span style="font-size:12px;font-weight:600">Tarefas do scheduler</span><span class="chip cdk" id="sem-chip">—</span></div>
       <div id="sem-tasks"></div>
+      <button class="btn btn-sm mt8" id="sem-add-btn" onclick="semAddMore()" style="width:100%">➕ Adicionar mais uma tarefa</button>
       <div id="sem-due" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--b2);display:none"></div>
     </div>
     <div>
@@ -684,6 +685,34 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 
 
     <div style="font-size:11px;color:var(--t3)">Parâmetros estratégicos do scheduler · Alterações aplicadas imediatamente a prioridades, cronograma e revisões.</div>
+  </div>
+
+  <!-- SECTION: Otimização de estudos -->
+  <div class="card mb14">
+    <div class="ch"><div class="ctt">🧠 Otimização de estudos</div></div>
+    <div class="alert a-blu mb12" style="font-size:11px">
+      Ajustes pedagógicos do scheduler. Melhoram retenção e distribuição da carga ao longo das semanas.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <label style="font-size:10px;font-weight:600;color:var(--t3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Máx. conteúdo novo por semana (%)</label>
+        <input type="number" id="sp-maxNewPct" min="20" max="100" style="width:90px">
+        <div style="font-size:10px;color:var(--t3);margin-top:3px">Resto da capacidade fica para revisão/blocos.</div>
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:600;color:var(--t3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Reta final sem novo conteúdo (semanas)</label>
+        <input type="number" id="sp-rampDownWeeks" min="0" max="12" style="width:90px">
+        <div style="font-size:10px;color:var(--t3);margin-top:3px">Requer data da prova configurada.</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+      <label class="row" style="cursor:pointer;font-size:12px"><input type="checkbox" id="sp-interleave"> <span>Intercalar disciplinas na semana <span style="color:var(--t3)">(interleaving — evita blocos longos de uma só área)</span></span></label>
+      <label class="row" style="cursor:pointer;font-size:12px"><input type="checkbox" id="sp-easeFactor"> <span>Fator de facilidade nas revisões <span style="color:var(--t3)">(SM-2 — espaça mais quem acerta consistentemente)</span></span></label>
+    </div>
+    <div style="display:flex;gap:7px">
+      <button class="btn btn-k" id="opt-save-btn" onclick="optApply()">Salvar e recalcular</button>
+      <button class="btn" onclick="optReset()">Restaurar padrões</button>
+    </div>
   </div>
 
   <!-- SECTION: Bancas -->
@@ -1177,6 +1206,7 @@ function computeTopic(base){
   let q=0, a=0, pct=null;
 
   let latestRevPct=null, latestRevDate=null;
+  const revHistory=[]; // acertos (%) de cada revisão espaçada, em ordem — base do fator de facilidade
 
   for(const s of userSess){
     const sq=s.q||0, sa=s.a||0;
@@ -1198,7 +1228,7 @@ function computeTopic(base){
       if(sq>0){q+=sq; a+=sa;}
     }
     if(['SPACED_REV','THEORY_REV','QUICK_REV','ERROR_REV','FINAL_REV'].includes(s.tipo)){
-      if(sq>0){latestRevPct=safe_pct(sa,sq); latestRevDate=s.data;}
+      if(sq>0){latestRevPct=safe_pct(sa,sq); latestRevDate=s.data; revHistory.push(latestRevPct);}
     }
   }
 
@@ -1213,7 +1243,20 @@ function computeTopic(base){
   let nextRev=null, revInterval=null, revStatus='none', extStage=stage;
   if(stage==='Q3_DONE'){
     const p=revPct!==null?revPct:70;
-    revInterval = p>90?SR_CFG.gt90 : p>80?SR_CFG.gt80 : p>70?SR_CFG.gt70 : p>60?SR_CFG.gt60 : SR_CFG.lt60;
+    // Intervalo base = faixa de acerto da última revisão (comportamento pedido pelo usuário)
+    let bandInterval = p>90?SR_CFG.gt90 : p>80?SR_CFG.gt80 : p>70?SR_CFG.gt70 : p>60?SR_CFG.gt60 : SR_CFG.lt60;
+    // Fator de facilidade (SM-2): modula o intervalo pela consistência do histórico de revisões.
+    // Histórico consistentemente bom → espaça mais; oscilante/ruim → encurta. Base continua a última revisão.
+    if(SP().easeFactor && revHistory.length){
+      let ef=1.0;
+      for(const rp of revHistory){
+        const qual=rp/20; // 0–5
+        ef += (0.1 - (5-qual)*(0.08+(5-qual)*0.02));
+        ef = Math.max(0.7, Math.min(1.6, ef));
+      }
+      bandInterval = Math.round(bandInterval*ef);
+    }
+    revInterval = bandInterval;
     const baseDate = latestRevDate||r3;
     nextRev = addDays(baseDate, revInterval);
     const d=daysDiff(ISO_TODAY, nextRev);
@@ -1278,7 +1321,12 @@ function SP(){var p=STATE.schedulerParams||{};return {
   minQ2:   p.minQ2   ||30,
   minQ3:   p.minQ3   ||30,
   minRev:  p.minRev  ||30,
-  hrsPerWk:p.hrsPerWk||15
+  hrsPerWk:p.hrsPerWk||15,
+  // Otimização de estudos (booleans guardados como 0/1 — não usar || pois 0 é válido)
+  maxNewPct:     p.maxNewPct!=null?p.maxNewPct:60,   // % máx da semana em conteúdo novo
+  rampDownWeeks: p.rampDownWeeks!=null?p.rampDownWeeks:4, // semanas finais sem novo conteúdo
+  interleave:    p.interleave!=null?p.interleave:1,  // intercalar disciplinas na semana
+  easeFactor:    p.easeFactor!=null?p.easeFactor:1   // fator de facilidade SM-2 nos intervalos
 };}
 // Minutos por tipo de tarefa (fallback usado só quando t.min ausente — dados legados)
 function _minForType(type){
@@ -1319,6 +1367,26 @@ function getDiscWeights(){
 let WEEKS=[];
 let _lastValidation=[];
 
+// Round-robin por disciplina preservando a ordem de prioridade dentro de cada uma.
+// Ex.: [CLM,CLM,CLC,GO] → [CLM,CLC,GO,CLM]. Melhora o interleaving pedagógico.
+function _interleaveByDisc(tasks){
+  const byDisc={}, order=[];
+  tasks.forEach(function(t){
+    const d=t.disc||'?';
+    if(!byDisc[d]){ byDisc[d]=[]; order.push(d); }
+    byDisc[d].push(t);
+  });
+  const out=[];
+  let remaining=true;
+  while(remaining){
+    remaining=false;
+    for(const d of order){
+      if(byDisc[d].length){ out.push(byDisc[d].shift()); remaining=true; }
+    }
+  }
+  return out;
+}
+
 function recomputeScheduler(){
   const all=computeAll();
   const discW=getDiscWeights();
@@ -1339,8 +1407,9 @@ function recomputeScheduler(){
   const _examCfg = (function(){
     try{ return JSON.parse(localStorage.getItem('qg_exam_date')||'null'); }catch(e){ return null; }
   })();
+  const _hasExam = !!(_examCfg && _examCfg.date);
   const WEEKS_N = (function(){
-    if(_examCfg && _examCfg.date){
+    if(_hasExam){
       const examMs = new Date(_examCfg.date).getTime();
       const todayMs = new Date(TODAY).getTime();
       const weeks = Math.ceil((examMs - todayMs) / (7*24*3600*1000));
@@ -1357,7 +1426,7 @@ function recomputeScheduler(){
     const isCurrent=wkISO<=ISO_TODAY&&ISO_TODAY<=wkEndISO;
     const isPast=wkEndISO<ISO_TODAY;
 
-    const tasks=[];
+    let tasks=[];
     let min=0;
     var sp = SP();
     const CAP = sp.hrsPerWk * 60;
@@ -1388,7 +1457,6 @@ function recomputeScheduler(){
         min+=_mBlk;
         blockPool.splice(i,1);
       } else { i++; }
-      if(tasks.filter(t=>['Q2_TASK','Q3_TASK'].includes(t.type)).length>=3) break;
     }
 
     // 3. Upcoming spaced revisions due this week
@@ -1403,15 +1471,23 @@ function recomputeScheduler(){
       } else { i++; }
     }
 
-    // 4. New topics (max 4/week, proportional to disc weights)
-    // "Conteúdo novo" = teoria (minNew) + Q1 na mesma semana (minQ1) = _mNew
-    if(min+_mNew<=CAP&&newPool.length>0){
+    // 4. New topics — preenche a capacidade restante (hrsPerWk é META, não teto).
+    // #3 Ramp-down: nas últimas semanas antes da prova, corta conteúdo novo
+    //    (só revisão + blocos + simulados) para consolidar o que já foi estudado.
+    // #1 Limite de % novo: no máximo maxNewPct% da capacidade da semana em conteúdo novo.
+    const inRampDown = _hasExam && sp.rampDownWeeks>0 && (w >= WEEKS_N - sp.rampDownWeeks);
+    const newBudget  = Math.floor(CAP * (sp.maxNewPct/100)); // teto de minutos p/ conteúdo novo
+    let   newMinUsed = 0;
+    const maxNew=Math.max(1, Math.floor((CAP-min)/_mNew));
+    if(!inRampDown && min+_mNew<=CAP && newMinUsed<newBudget && newPool.length>0){
       const discsUsed={};
       let newCount=0;
-      for(let i=0;i<newPool.length&&min+_mNew<=CAP&&newCount<4;){
+      for(let i=0;i<newPool.length&&newCount<maxNew;){
         const t=newPool[i];
+        const cost=(t.stage!=='CONTENT_SEEN'?sp.minNew:0)+sp.minQ1;
+        if(min+cost>CAP || newMinUsed+cost>newBudget){ i++; continue; }
         const used=discsUsed[t.disc]||0;
-        const target=Math.ceil((discW[t.disc]||0.2)*4); // proportional slot
+        const target=Math.max(1,Math.ceil((discW[t.disc]||0.2)*maxNew)); // proportional slot
         if(used<target){
           // Conteúdo novo (só se ainda não fez CONTENT_SEEN)
           if(t.stage!=='CONTENT_SEEN'){
@@ -1425,6 +1501,7 @@ function recomputeScheduler(){
             label:`Bloco Q1: ${t.n} (${t.disc})`,
             explain:`Q1 na mesma semana · incidência ${t.inc} · prioridade ${t.priority}`});
           min+=sp.minQ1;
+          newMinUsed+=cost;
           discsUsed[t.disc]=(discsUsed[t.disc]||0)+1;
           newPool.splice(i,1);
           newCount++;
@@ -1432,8 +1509,14 @@ function recomputeScheduler(){
       }
     }
 
+    // #2 Interleaving: intercala disciplinas na ordem da semana (round-robin) para
+    //    reduzir o efeito de blocagem e melhorar a retenção. Não altera o conteúdo.
+    if(sp.interleave && tasks.length>2){
+      tasks=_interleaveByDisc(tasks);
+    }
+
     const label=`${wkStart.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})} – ${wkEnd.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'})}`;
-    const foco=tasks.length?[...new Set(tasks.map(t=>t.n))].slice(0,2).join(' · '):'Semana livre';
+    const foco=tasks.length?[...new Set(tasks.map(t=>t.n))].slice(0,2).join(' · '):(inRampDown?'Reta final · revisão':'Semana livre');
 
     // Assign stable UIDs to tasks before pushing
     tasks.forEach(t => {
@@ -1787,6 +1870,75 @@ function renderHoje(){
 // ═══════════════════════════════════════════════════════
 // LAYER 11 — SEMANA
 // ═══════════════════════════════════════════════════════
+
+// Adiciona ao plano congelado da semana atual a próxima tarefa de maior
+// prioridade que ainda não está nele. Ordem: revisão atrasada > bloco devido
+// > revisão da semana > conteúdo novo (+ Q1). Permite ultrapassar a meta.
+function semAddMore(){
+  var curISO=_mondayISO();
+  var plan=STATE.weekPlans[curISO];
+  if(!plan){ renderSemana(); return; }
+  var all=computeAll();
+  var wkEnd=addDays(curISO,6);
+  var inPlan={};
+  plan.forEach(function(t){ if(t.topicId) inPlan[t.topicId]=true; });
+
+  function pushTask(obj){
+    var idx=plan.length;
+    var uid=obj.uid||(curISO+'_'+obj.type+'_'+(obj.topicId||obj.n||idx));
+    if(plan.some(function(p){return (p.uid||'')===uid;})) return false;
+    plan.push(Object.assign({},obj,{uid:uid,idx:idx,min:obj.min||_minForType(obj.type)}));
+    return true;
+  }
+  var sp=SP();
+  // 1. revisão espaçada atrasada
+  var cand=all.filter(function(t){return t.revStatus==='late'&&!inPlan[t.id];})
+    .sort(function(a,b){return b.priority-a.priority;})[0];
+  if(cand){
+    pushTask({type:'SPACED_REV',topicId:cand.id,disc:cand.disc,n:cand.n,pct:cand.pct,min:sp.minRev,
+      label:'🔴 Rev. atrasada: '+cand.n+' ('+cand.disc+')',
+      explain:'Adicionado manualmente · SM-2 intervalo '+cand.revInterval+'d'});
+  } else {
+    // 2. bloco Q2/Q3 devido
+    cand=all.filter(function(t){return !inPlan[t.id]&&t.pendingBlocks.some(function(b){return b.overdue||(b.due>=curISO&&b.due<=wkEnd);});})
+      .sort(function(a,b){return b.priority-a.priority;})[0];
+    if(cand){
+      var blk=cand.pendingBlocks.find(function(b){return b.overdue||(b.due>=curISO&&b.due<=wkEnd);});
+      pushTask({type:blk.block+'_TASK',topicId:cand.id,disc:cand.disc,n:cand.n,
+        min:(blk.block==='Q2'?sp.minQ2:sp.minQ3),
+        label:(blk.overdue?'⚠ Atrasado ':'📅 Bloco ')+blk.block+': '+cand.n,
+        explain:'Adicionado manualmente · '+blk.block+' vence '+fmtD(blk.due)});
+    } else {
+      // 3. revisão que vence nesta semana
+      cand=all.filter(function(t){return !inPlan[t.id]&&t.nextRev&&t.nextRev>=curISO&&t.nextRev<=wkEnd&&t.revStatus!=='late';})
+        .sort(function(a,b){return b.priority-a.priority;})[0];
+      if(cand){
+        pushTask({type:'SPACED_REV',topicId:cand.id,disc:cand.disc,n:cand.n,pct:cand.pct,min:sp.minRev,
+          label:'Rev. espaçada: '+cand.n+' — '+fmtD(cand.nextRev),
+          explain:'Adicionado manualmente · intervalo '+cand.revInterval+'d'});
+      } else {
+        // 4. conteúdo novo + Q1
+        cand=all.filter(function(t){return !inPlan[t.id]&&(t.stage==='CONTENT_SEEN'||t.stage==='NOT_STARTED');})
+          .sort(function(a,b){return b.priority-a.priority;})[0];
+        if(cand){
+          if(cand.stage!=='CONTENT_SEEN'){
+            pushTask({type:'NEW',topicId:cand.id,disc:cand.disc,n:cand.n,min:sp.minNew,
+              label:'Novo conteúdo: '+cand.n+' ('+cand.disc+')',
+              explain:'Adicionado manualmente · incidência '+cand.inc});
+          }
+          pushTask({type:'Q1_TASK',topicId:cand.id,disc:cand.disc,n:cand.n,min:sp.minQ1,
+            label:'Bloco Q1: '+cand.n+' ('+cand.disc+')',
+            explain:'Q1 na mesma semana · adicionado manualmente'});
+        }
+      }
+    }
+  }
+  if(!cand){ _showToast('Nenhuma tarefa disponível para adicionar'); return; }
+  STATE.weekPlans[curISO]=plan;
+  persistState(); queueCloudSave(); renderSemana();
+  _showToast('✓ Tarefa adicionada ao plano da semana');
+}
+
 function renderSemana(){
   if(!WEEKS.length) recomputeScheduler();
   const curWk = WEEKS.find(w => w.isCurrent) || WEEKS[0];
@@ -1839,7 +1991,16 @@ function renderSemana(){
   var pctColor = pct>=80?'var(--grn)':pct>=50?'var(--amb)':'var(--t)';
 
   var planMinTotal = plan.reduce(function(t,tk){return t+(tk.min||SP().minRev);},0);
-  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+Math.round(planMinTotal/60*10)/10+'h';
+  var planH = Math.round(planMinTotal/60*10)/10;
+  var metaH = SP().hrsPerWk;
+  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+planH+'h / meta '+metaH+'h';
+  // Botão de adicionar mais: destaca quando ainda falta atingir a meta
+  var addBtn=document.getElementById('sem-add-btn');
+  if(addBtn){
+    var falta=Math.round((metaH-planH)*10)/10;
+    addBtn.textContent = falta>0 ? ('➕ Adicionar mais ('+falta+'h abaixo da meta)') : '➕ Adicionar mais uma tarefa';
+    addBtn.className = falta>0 ? 'btn btn-k btn-sm mt8' : 'btn btn-sm mt8';
+  }
 
   // HERO
   var progStrip = plan.map(function(t){
@@ -2764,6 +2925,43 @@ function spFillForm(){
   });
 }
 
+// ── Otimização de estudos (maxNewPct / rampDownWeeks / interleave / easeFactor) ──
+function optFillForm(){
+  var sp=SP();
+  var mn=document.getElementById('sp-maxNewPct');     if(mn) mn.value=sp.maxNewPct;
+  var rd=document.getElementById('sp-rampDownWeeks'); if(rd) rd.value=sp.rampDownWeeks;
+  var il=document.getElementById('sp-interleave');    if(il) il.checked=!!sp.interleave;
+  var ef=document.getElementById('sp-easeFactor');    if(ef) ef.checked=!!sp.easeFactor;
+}
+function optApply(){
+  var sp=STATE.schedulerParams||{};
+  var before=JSON.stringify(sp);
+  var mn=document.getElementById('sp-maxNewPct');
+  var rd=document.getElementById('sp-rampDownWeeks');
+  var il=document.getElementById('sp-interleave');
+  var ef=document.getElementById('sp-easeFactor');
+  if(mn){ var vmn=parseInt(mn.value); if(vmn>=20&&vmn<=100) sp.maxNewPct=vmn; }
+  if(rd){ var vrd=parseInt(rd.value); if(vrd>=0&&vrd<=12)   sp.rampDownWeeks=vrd; }
+  if(il) sp.interleave = il.checked?1:0;
+  if(ef) sp.easeFactor = ef.checked?1:0;
+  STATE.schedulerParams=sp;
+  _spOfferReplanCurrentWeek(JSON.stringify(sp)!==before);
+  persistState();
+  queueCloudSave();
+  fullRebuildScheduler();
+  var btn=document.getElementById('opt-save-btn');
+  if(btn){btn.textContent='✓ Salvo!';setTimeout(function(){btn.textContent='Salvar e recalcular';},2000);}
+}
+function optReset(){
+  var sp=STATE.schedulerParams||{};
+  sp.maxNewPct=60; sp.rampDownWeeks=4; sp.interleave=1; sp.easeFactor=1;
+  STATE.schedulerParams=sp;
+  persistState();
+  queueCloudSave();
+  optFillForm();
+  fullRebuildScheduler();
+}
+
 // ═══════════════════════════════════════════════════════
 // WEEK HISTORY RENDER
 function renderWeekHistDetail(wkISO){
@@ -3597,6 +3795,7 @@ function renderConfig(){
   cfgRenderBancaSliders();
   srFillForm();
   spFillForm();
+  optFillForm();
   // Update cost preview
   var spc=document.getElementById('sp-cost-preview');
   if(spc){ var sp=SP(); spc.textContent=(sp.minNew+sp.minQ1)+' min'; }

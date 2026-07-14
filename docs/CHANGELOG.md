@@ -221,6 +221,32 @@ Alterado:
 
 ---
 
+## v2.9
+
+Alterado:
+
+- "Horas por semana" agora é META, não teto: o scheduler preenche a semana até atingir as horas configuradas. Removidos os limites fixos de 4 conteúdos novos e 3 blocos por semana — o nº de conteúdos novos agora deriva da capacidade restante, com distribuição proporcional ao peso das disciplinas
+
+Adicionado:
+
+- Botão "➕ Adicionar mais" em "Esta semana": anexa ao plano a próxima tarefa de maior prioridade ainda não incluída (revisão atrasada > bloco devido > revisão da semana > conteúdo novo + Q1), permitindo ultrapassar a meta
+- Chip da semana mostra "Xh / meta Yh"; o botão destaca quando o plano está abaixo da meta ("N h abaixo da meta")
+
+---
+
+## v3.0 — Otimização de estudos
+
+Adicionado (nova seção "🧠 Otimização de estudos" em Configurações):
+
+- **Limite de conteúdo novo por semana (%)**: no máximo `maxNewPct`% da capacidade da semana em conteúdo novo (padrão 60%); o restante fica para revisão/blocos — protege a retenção mesmo com horas altas
+- **Reta final sem conteúdo novo**: nas últimas `rampDownWeeks` semanas antes da prova (padrão 4), o scheduler corta conteúdo novo e prioriza revisão/blocos (requer data da prova configurada)
+- **Interleaving de disciplinas**: as tarefas da semana são intercaladas por disciplina (round-robin) em vez de agrupadas — reduz blocagem e melhora retenção
+- **Fator de facilidade (SM-2)**: o intervalo de revisão, cuja base é o acerto da última revisão, é modulado pela consistência do histórico — quem acerta consistentemente espaça mais; quem oscila/erra encurta (multiplicador 0,7–1,6)
+
+Todos os quatro são configuráveis e sincronizam na nuvem via `STATE.schedulerParams`.
+
+---
+
 ## Próxima Versão
 
 Planejado:
