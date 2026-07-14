@@ -221,6 +221,19 @@ Alterado:
 
 ---
 
+## v2.9
+
+Alterado:
+
+- "Horas por semana" agora é META, não teto: o scheduler preenche a semana até atingir as horas configuradas. Removidos os limites fixos de 4 conteúdos novos e 3 blocos por semana — o nº de conteúdos novos agora deriva da capacidade restante, com distribuição proporcional ao peso das disciplinas
+
+Adicionado:
+
+- Botão "➕ Adicionar mais" em "Esta semana": anexa ao plano a próxima tarefa de maior prioridade ainda não incluída (revisão atrasada > bloco devido > revisão da semana > conteúdo novo + Q1), permitindo ultrapassar a meta
+- Chip da semana mostra "Xh / meta Yh"; o botão destaca quando o plano está abaixo da meta ("N h abaixo da meta")
+
+---
+
 ## Próxima Versão
 
 Planejado:

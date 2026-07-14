@@ -427,6 +427,7 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
     <div>
       <div class="rb mb8"><span style="font-size:12px;font-weight:600">Tarefas do scheduler</span><span class="chip cdk" id="sem-chip">—</span></div>
       <div id="sem-tasks"></div>
+      <button class="btn btn-sm mt8" id="sem-add-btn" onclick="semAddMore()" style="width:100%">➕ Adicionar mais uma tarefa</button>
       <div id="sem-due" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--b2);display:none"></div>
     </div>
     <div>
@@ -1388,7 +1389,6 @@ function recomputeScheduler(){
         min+=_mBlk;
         blockPool.splice(i,1);
       } else { i++; }
-      if(tasks.filter(t=>['Q2_TASK','Q3_TASK'].includes(t.type)).length>=3) break;
     }
 
     // 3. Upcoming spaced revisions due this week
@@ -1403,15 +1403,17 @@ function recomputeScheduler(){
       } else { i++; }
     }
 
-    // 4. New topics (max 4/week, proportional to disc weights)
-    // "Conteúdo novo" = teoria (minNew) + Q1 na mesma semana (minQ1) = _mNew
+    // 4. New topics — preenche a capacidade restante (hrsPerWk é META, não teto).
+    // Nº de conteúdos novos que ainda cabem = capacidade livre / custo de 1 conteúdo.
+    // Distribuição proporcional ao peso de cada disciplina, escalada por esse total.
+    const maxNew=Math.max(1, Math.floor((CAP-min)/_mNew));
     if(min+_mNew<=CAP&&newPool.length>0){
       const discsUsed={};
       let newCount=0;
-      for(let i=0;i<newPool.length&&min+_mNew<=CAP&&newCount<4;){
+      for(let i=0;i<newPool.length&&min+_mNew<=CAP&&newCount<maxNew;){
         const t=newPool[i];
         const used=discsUsed[t.disc]||0;
-        const target=Math.ceil((discW[t.disc]||0.2)*4); // proportional slot
+        const target=Math.max(1,Math.ceil((discW[t.disc]||0.2)*maxNew)); // proportional slot
         if(used<target){
           // Conteúdo novo (só se ainda não fez CONTENT_SEEN)
           if(t.stage!=='CONTENT_SEEN'){
@@ -1787,6 +1789,75 @@ function renderHoje(){
 // ═══════════════════════════════════════════════════════
 // LAYER 11 — SEMANA
 // ═══════════════════════════════════════════════════════
+
+// Adiciona ao plano congelado da semana atual a próxima tarefa de maior
+// prioridade que ainda não está nele. Ordem: revisão atrasada > bloco devido
+// > revisão da semana > conteúdo novo (+ Q1). Permite ultrapassar a meta.
+function semAddMore(){
+  var curISO=_mondayISO();
+  var plan=STATE.weekPlans[curISO];
+  if(!plan){ renderSemana(); return; }
+  var all=computeAll();
+  var wkEnd=addDays(curISO,6);
+  var inPlan={};
+  plan.forEach(function(t){ if(t.topicId) inPlan[t.topicId]=true; });
+
+  function pushTask(obj){
+    var idx=plan.length;
+    var uid=obj.uid||(curISO+'_'+obj.type+'_'+(obj.topicId||obj.n||idx));
+    if(plan.some(function(p){return (p.uid||'')===uid;})) return false;
+    plan.push(Object.assign({},obj,{uid:uid,idx:idx,min:obj.min||_minForType(obj.type)}));
+    return true;
+  }
+  var sp=SP();
+  // 1. revisão espaçada atrasada
+  var cand=all.filter(function(t){return t.revStatus==='late'&&!inPlan[t.id];})
+    .sort(function(a,b){return b.priority-a.priority;})[0];
+  if(cand){
+    pushTask({type:'SPACED_REV',topicId:cand.id,disc:cand.disc,n:cand.n,pct:cand.pct,min:sp.minRev,
+      label:'🔴 Rev. atrasada: '+cand.n+' ('+cand.disc+')',
+      explain:'Adicionado manualmente · SM-2 intervalo '+cand.revInterval+'d'});
+  } else {
+    // 2. bloco Q2/Q3 devido
+    cand=all.filter(function(t){return !inPlan[t.id]&&t.pendingBlocks.some(function(b){return b.overdue||(b.due>=curISO&&b.due<=wkEnd);});})
+      .sort(function(a,b){return b.priority-a.priority;})[0];
+    if(cand){
+      var blk=cand.pendingBlocks.find(function(b){return b.overdue||(b.due>=curISO&&b.due<=wkEnd);});
+      pushTask({type:blk.block+'_TASK',topicId:cand.id,disc:cand.disc,n:cand.n,
+        min:(blk.block==='Q2'?sp.minQ2:sp.minQ3),
+        label:(blk.overdue?'⚠ Atrasado ':'📅 Bloco ')+blk.block+': '+cand.n,
+        explain:'Adicionado manualmente · '+blk.block+' vence '+fmtD(blk.due)});
+    } else {
+      // 3. revisão que vence nesta semana
+      cand=all.filter(function(t){return !inPlan[t.id]&&t.nextRev&&t.nextRev>=curISO&&t.nextRev<=wkEnd&&t.revStatus!=='late';})
+        .sort(function(a,b){return b.priority-a.priority;})[0];
+      if(cand){
+        pushTask({type:'SPACED_REV',topicId:cand.id,disc:cand.disc,n:cand.n,pct:cand.pct,min:sp.minRev,
+          label:'Rev. espaçada: '+cand.n+' — '+fmtD(cand.nextRev),
+          explain:'Adicionado manualmente · intervalo '+cand.revInterval+'d'});
+      } else {
+        // 4. conteúdo novo + Q1
+        cand=all.filter(function(t){return !inPlan[t.id]&&(t.stage==='CONTENT_SEEN'||t.stage==='NOT_STARTED');})
+          .sort(function(a,b){return b.priority-a.priority;})[0];
+        if(cand){
+          if(cand.stage!=='CONTENT_SEEN'){
+            pushTask({type:'NEW',topicId:cand.id,disc:cand.disc,n:cand.n,min:sp.minNew,
+              label:'Novo conteúdo: '+cand.n+' ('+cand.disc+')',
+              explain:'Adicionado manualmente · incidência '+cand.inc});
+          }
+          pushTask({type:'Q1_TASK',topicId:cand.id,disc:cand.disc,n:cand.n,min:sp.minQ1,
+            label:'Bloco Q1: '+cand.n+' ('+cand.disc+')',
+            explain:'Q1 na mesma semana · adicionado manualmente'});
+        }
+      }
+    }
+  }
+  if(!cand){ _showToast('Nenhuma tarefa disponível para adicionar'); return; }
+  STATE.weekPlans[curISO]=plan;
+  persistState(); queueCloudSave(); renderSemana();
+  _showToast('✓ Tarefa adicionada ao plano da semana');
+}
+
 function renderSemana(){
   if(!WEEKS.length) recomputeScheduler();
   const curWk = WEEKS.find(w => w.isCurrent) || WEEKS[0];
@@ -1839,7 +1910,16 @@ function renderSemana(){
   var pctColor = pct>=80?'var(--grn)':pct>=50?'var(--amb)':'var(--t)';
 
   var planMinTotal = plan.reduce(function(t,tk){return t+(tk.min||SP().minRev);},0);
-  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+Math.round(planMinTotal/60*10)/10+'h';
+  var planH = Math.round(planMinTotal/60*10)/10;
+  var metaH = SP().hrsPerWk;
+  document.getElementById('sem-chip').textContent = done+'/'+plan.length+' · '+planH+'h / meta '+metaH+'h';
+  // Botão de adicionar mais: destaca quando ainda falta atingir a meta
+  var addBtn=document.getElementById('sem-add-btn');
+  if(addBtn){
+    var falta=Math.round((metaH-planH)*10)/10;
+    addBtn.textContent = falta>0 ? ('➕ Adicionar mais ('+falta+'h abaixo da meta)') : '➕ Adicionar mais uma tarefa';
+    addBtn.className = falta>0 ? 'btn btn-k btn-sm mt8' : 'btn btn-sm mt8';
+  }
 
   // HERO
   var progStrip = plan.map(function(t){
