@@ -716,11 +716,16 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
     <div class="alert a-blu mb12" style="font-size:11px">
       Ajustes pedagógicos do scheduler. Melhoram retenção e distribuição da carga ao longo das semanas.
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <label style="font-size:10px;font-weight:600;color:var(--t3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Mín. conteúdos novos + Q1 / semana</label>
+        <input type="number" id="sp-minNewCount" min="0" max="15" style="width:90px">
+        <div style="font-size:10px;color:var(--t3);margin-top:3px">Piso garantido: capacidade reservada antes das revisões.</div>
+      </div>
       <div>
         <label style="font-size:10px;font-weight:600;color:var(--t3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Máx. conteúdo novo por semana (%)</label>
         <input type="number" id="sp-maxNewPct" min="20" max="100" style="width:90px">
-        <div style="font-size:10px;color:var(--t3);margin-top:3px">Resto da capacidade fica para revisão/blocos.</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:3px">Teto: resto fica para revisão/blocos.</div>
       </div>
       <div>
         <label style="font-size:10px;font-weight:600;color:var(--t3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Reta final sem novo conteúdo (semanas)</label>
@@ -1357,7 +1362,8 @@ function SP(){var p=STATE.schedulerParams||{};return {
   minRev:  p.minRev  ||30,
   hrsPerWk:p.hrsPerWk||15,
   // Otimização de estudos (booleans guardados como 0/1 — não usar || pois 0 é válido)
-  maxNewPct:     p.maxNewPct!=null?p.maxNewPct:60,   // % máx da semana em conteúdo novo
+  minNewCount:   p.minNewCount!=null?p.minNewCount:2,   // PISO: mín. de conteúdos novos + Q1 / semana
+  maxNewPct:     p.maxNewPct!=null?p.maxNewPct:60,   // TETO: % máx da semana em conteúdo novo
   rampDownWeeks: p.rampDownWeeks!=null?p.rampDownWeeks:4, // semanas finais sem novo conteúdo
   interleave:    p.interleave!=null?p.interleave:1,  // intercalar disciplinas na semana
   easeFactor:    p.easeFactor!=null?p.easeFactor:1   // fator de facilidade SM-2 nos intervalos
@@ -1469,10 +1475,17 @@ function recomputeScheduler(){
     var _mQ3  = sp.minQ3;
     var _mNew = sp.minNew + sp.minQ1; // conteúdo novo = teoria + Q1 na mesma semana
 
-    // 1. Overdue spaced revisions (always slot first)
-    // Consome do INÍCIO do pool (maior prioridade primeiro) — se a capacidade
-    // acabar, as menos importantes é que ficam para as próximas semanas.
-    while(overdueRevs.length&&min+_mRev<=CAP){
+    // ── Reserva de conteúdo novo (PISO) ──────────────────────────────
+    // Cada semana deve ter no mínimo minNewCount conteúdos novos + Q1.
+    // Reservamos essa capacidade ANTES das revisões/blocos, para que eles
+    // nunca engulam todo o CAP e sobrem 0 para conteúdo novo.
+    const inRampDown = _hasExam && sp.rampDownWeeks>0 && (w >= WEEKS_N - sp.rampDownWeeks);
+    const wantNew    = inRampDown ? 0 : Math.min(sp.minNewCount||0, newPool.length);
+    const reservedNew= Math.min(CAP, wantNew*_mNew); // pior caso (NEW+Q1); garante o piso
+    const revCap     = Math.max(0, CAP - reservedNew); // teto p/ revisões/blocos deixarem espaço ao novo
+
+    // 1. Overdue spaced revisions (maior prioridade primeiro), limitadas a revCap
+    while(overdueRevs.length&&min+_mRev<=revCap){
       const t=overdueRevs.shift();
       tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
         label:`🔴 Rev. atrasada: ${t.n} (${t.disc}) — acerto ${t.pct!==null?t.pct+'%':'—'}`,
@@ -1480,13 +1493,13 @@ function recomputeScheduler(){
       min+=_mRev;
     }
 
-    // 2. Pending blocks (overdue first, then due this week)
+    // 2. Pending blocks (overdue first, then due this week), limitados a revCap
     for(let i=0;i<blockPool.length;){
       const t=blockPool[i];
       const blk=t.pendingBlocks.find(b=>b.overdue||(b.due>=wkISO&&b.due<=wkEndISO));
       if(blk){
         const _mBlk=(blk.block==='Q2'?_mQ2:_mQ3);
-        if(min+_mBlk>CAP) break;
+        if(min+_mBlk>revCap) break;
         tasks.push({type:blk.block+'_TASK',topicId:t.id,disc:t.disc,n:t.n,min:_mBlk,
           label:`${blk.overdue?'⚠ Atrasado':'📅 Bloco'} ${blk.block}: ${t.n}`,
           explain:`Gerado auto: ${blk.block} vence ${fmtD(blk.due)}${blk.overdue?' (ATRASADO)':''} · prioridade ${t.priority}`});
@@ -1495,8 +1508,8 @@ function recomputeScheduler(){
       } else { i++; }
     }
 
-    // 3. Upcoming spaced revisions due this week
-    for(let i=0;i<upcomingRevs.length&&min+_mRev<=CAP;){
+    // 3. Upcoming spaced revisions due this week, limitadas a revCap
+    for(let i=0;i<upcomingRevs.length&&min+_mRev<=revCap;){
       const t=upcomingRevs[i];
       if(t.nextRev&&t.nextRev>=wkISO&&t.nextRev<=wkEndISO){
         tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
@@ -1507,48 +1520,67 @@ function recomputeScheduler(){
       } else { i++; }
     }
 
-    // 4. New topics — preenche a capacidade restante (hrsPerWk é META, não teto).
-    // #3 Ramp-down: nas últimas semanas antes da prova, corta conteúdo novo
-    //    (só revisão + blocos + simulados) para consolidar o que já foi estudado.
-    // #1 Limite de % novo: no máximo maxNewPct% da capacidade da semana em conteúdo novo.
-    const inRampDown = _hasExam && sp.rampDownWeeks>0 && (w >= WEEKS_N - sp.rampDownWeeks);
+    // 4. New topics — PISO garantido (minNewCount) + até o TETO (maxNewPct).
+    //    Ramp-down zera o novo (só revisão/blocos na reta final).
     const newBudget  = Math.floor(CAP * (sp.maxNewPct/100)); // teto de minutos p/ conteúdo novo
-    let   newMinUsed = 0;
-    const maxNew=Math.max(1, Math.floor((CAP-min)/_mNew));
-    if(!inRampDown && min+_mNew<=CAP && newMinUsed<newBudget && newPool.length>0){
-      const discsUsed={};
-      let newCount=0;
-      for(let i=0;i<newPool.length&&newCount<maxNew;){
-        const t=newPool[i];
-        const cost=(t.stage!=='CONTENT_SEEN'?sp.minNew:0)+sp.minQ1;
-        if(min+cost>CAP || newMinUsed+cost>newBudget){ i++; continue; }
-        const used=discsUsed[t.disc]||0;
-        const target=Math.max(1,Math.ceil((discW[t.disc]||0.2)*maxNew)); // proportional slot
-        if(used<target){
-          // Conteúdo novo (só se ainda não fez CONTENT_SEEN)
-          if(t.stage!=='CONTENT_SEEN'){
-            tasks.push({type:'NEW',topicId:t.id,disc:t.disc,n:t.n,min:sp.minNew,
-              label:`Novo conteúdo: ${t.n} (${t.disc})`,
-              explain:`Prioridade ${t.priority} · incidência ${t.inc} · peso ${t.disc} ${((discW[t.disc]||0)*100).toFixed(1)}% · ${STAGE_LABEL[t.stage]}`});
-            min+=sp.minNew;
+    let   newMinUsed = 0, newCount = 0;
+    const discsUsed  = {};
+    const maxNewCap  = Math.max(1, Math.floor((CAP-min)/_mNew));
+    if(!inRampDown && newPool.length>0){
+      while(newPool.length && min+sp.minQ1<=CAP){
+        let picked=-1;
+        for(let i=0;i<newPool.length;i++){
+          const t=newPool[i];
+          const cost=(t.stage!=='CONTENT_SEEN'?sp.minNew:0)+sp.minQ1;
+          if(min+cost>CAP) continue;
+          const belowFloor   = newCount<wantNew;              // ainda garantindo o mínimo
+          const withinCeiling= newMinUsed+cost<=newBudget;    // dentro do teto de %
+          if(!belowFloor && !withinCeiling) continue;         // teto atingido e piso satisfeito
+          if(!belowFloor){ // além do piso: respeita distribuição proporcional por disciplina
+            const target=Math.max(1,Math.ceil((discW[t.disc]||0.2)*maxNewCap));
+            if((discsUsed[t.disc]||0)>=target) continue;
           }
-          // Q1 sempre gerado na mesma semana do conteúdo novo
-          tasks.push({type:'Q1_TASK',topicId:t.id,disc:t.disc,n:t.n,min:sp.minQ1,
-            label:`Bloco Q1: ${t.n} (${t.disc})`,
-            explain:`Q1 na mesma semana · incidência ${t.inc} · prioridade ${t.priority}`});
-          min+=sp.minQ1;
-          newMinUsed+=cost;
-          discsUsed[t.disc]=(discsUsed[t.disc]||0)+1;
-          newPool.splice(i,1);
-          newCount++;
-        } else { i++; }
+          picked=i; break;
+        }
+        if(picked<0) break;
+        const t=newPool[picked];
+        const cost=(t.stage!=='CONTENT_SEEN'?sp.minNew:0)+sp.minQ1;
+        if(t.stage!=='CONTENT_SEEN'){
+          tasks.push({type:'NEW',topicId:t.id,disc:t.disc,n:t.n,min:sp.minNew,
+            label:`Novo conteúdo: ${t.n} (${t.disc})`,
+            explain:`Prioridade ${t.priority} · incidência ${t.inc} · peso ${t.disc} ${((discW[t.disc]||0)*100).toFixed(1)}% · ${STAGE_LABEL[t.stage]}`});
+          min+=sp.minNew;
+        }
+        tasks.push({type:'Q1_TASK',topicId:t.id,disc:t.disc,n:t.n,min:sp.minQ1,
+          label:`Bloco Q1: ${t.n} (${t.disc})`,
+          explain:`Q1 na mesma semana · incidência ${t.inc} · prioridade ${t.priority}`});
+        min+=sp.minQ1;
+        newMinUsed+=cost;
+        discsUsed[t.disc]=(discsUsed[t.disc]||0)+1;
+        newPool.splice(picked,1);
+        newCount++;
       }
     }
 
-    // 5. Antecipação de revisões: se o budget de conteúdo novo foi atingido e ainda
-    //    sobra capacidade até a meta, puxa revisões que venceriam nas PRÓXIMAS
-    //    semanas (as mais próximas do vencimento primeiro). Revisar antes nunca
-    //    prejudica — e mantém a semana na meta sem violar o % de conteúdo novo.
+    // 5. Preenche o restante até a META, na ordem de prioridade:
+    //    revisões atrasadas que sobraram → revisões da semana → antecipadas (futuras).
+    while(overdueRevs.length&&min+_mRev<=CAP){
+      const t=overdueRevs.shift();
+      tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
+        label:`🔴 Rev. atrasada: ${t.n} (${t.disc}) — acerto ${t.pct!==null?t.pct+'%':'—'}`,
+        explain:`Revisão espaçada vencida · SM-2 ${t.revInterval}d · prioridade ${t.priority}`});
+      min+=_mRev;
+    }
+    for(let i=0;i<upcomingRevs.length&&min+_mRev<=CAP;){
+      const t=upcomingRevs[i];
+      if(t.nextRev&&t.nextRev>=wkISO&&t.nextRev<=wkEndISO){
+        tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
+          label:`Rev. espaçada: ${t.n} — ${fmtD(t.nextRev)}`,
+          explain:`SM-2: próx. ${fmtD(t.nextRev)} · intervalo ${t.revInterval}d`});
+        min+=_mRev;
+        upcomingRevs.splice(i,1);
+      } else { i++; }
+    }
     if(min+_mRev<=CAP&&upcomingRevs.length){
       const future=[...upcomingRevs].filter(t=>t.nextRev&&t.nextRev>wkEndISO)
         .sort((a,b)=>a.nextRev.localeCompare(b.nextRev));
@@ -3074,6 +3106,7 @@ function spFillForm(){
 // ── Otimização de estudos (maxNewPct / rampDownWeeks / interleave / easeFactor) ──
 function optFillForm(){
   var sp=SP();
+  var mc=document.getElementById('sp-minNewCount');   if(mc) mc.value=sp.minNewCount;
   var mn=document.getElementById('sp-maxNewPct');     if(mn) mn.value=sp.maxNewPct;
   var rd=document.getElementById('sp-rampDownWeeks'); if(rd) rd.value=sp.rampDownWeeks;
   var il=document.getElementById('sp-interleave');    if(il) il.checked=!!sp.interleave;
@@ -3082,10 +3115,12 @@ function optFillForm(){
 function optApply(){
   var sp=STATE.schedulerParams||{};
   var before=JSON.stringify(sp);
+  var mc=document.getElementById('sp-minNewCount');
   var mn=document.getElementById('sp-maxNewPct');
   var rd=document.getElementById('sp-rampDownWeeks');
   var il=document.getElementById('sp-interleave');
   var ef=document.getElementById('sp-easeFactor');
+  if(mc){ var vmc=parseInt(mc.value); if(vmc>=0&&vmc<=15)  sp.minNewCount=vmc; }
   if(mn){ var vmn=parseInt(mn.value); if(vmn>=20&&vmn<=100) sp.maxNewPct=vmn; }
   if(rd){ var vrd=parseInt(rd.value); if(vrd>=0&&vrd<=12)   sp.rampDownWeeks=vrd; }
   if(il) sp.interleave = il.checked?1:0;
@@ -3100,7 +3135,7 @@ function optApply(){
 }
 function optReset(){
   var sp=STATE.schedulerParams||{};
-  sp.maxNewPct=60; sp.rampDownWeeks=4; sp.interleave=1; sp.easeFactor=1;
+  sp.minNewCount=2; sp.maxNewPct=60; sp.rampDownWeeks=4; sp.interleave=1; sp.easeFactor=1;
   STATE.schedulerParams=sp;
   persistState();
   queueCloudSave();
