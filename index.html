@@ -821,6 +821,11 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
       Se usar o botão de reset, volta à proporção calculada automaticamente pela incidência nas bancas.
     </div>
     <div id="cfg-disc-sliders" style="display:grid;gap:10px;margin-bottom:12px"></div>
+    <label class="row" style="cursor:pointer;font-size:12px;margin-bottom:12px;align-items:flex-start">
+      <input type="checkbox" id="disc-focus-hard" style="margin-top:2px">
+      <span>Modo focado <strong>total</strong> — áreas com 0% ficam fora também das <strong>revisões e blocos Q2/Q3</strong>
+      <span style="color:var(--t3)">(nada se perde: as revisões adiadas voltam como atrasadas quando a área reentrar no ciclo · use por períodos curtos)</span></span>
+    </label>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-k" onclick="discCfgApply()">✅ Salvar e aplicar</button>
       <button class="btn" onclick="discCfgPreset('bancas')">Usar incidência das bancas</button>
@@ -960,6 +965,8 @@ function discCfgRenderSliders(){
       <span id="disc-val-${d}" style="font-size:12px;font-weight:600">${val}%</span>
     </div>`;
   }).join('');
+  const fh=document.getElementById('disc-focus-hard');
+  if(fh) fh.checked=!!SP().focusHard;
   discCfgUpdateTotal();
 }
 function discCfgUpdateTotal(){
@@ -982,6 +989,13 @@ function discCfgApply(){
   if(Math.abs(total-100)>1){ alert('O total deve ser 100%. Atual: '+total+'%'); return; }
   try{ localStorage.setItem('qg_disc_cfg',JSON.stringify(cfg)); }catch(e){}
   STATE.discCfg=cfg;               // sincroniza na nuvem — segue a conta em qualquer dispositivo
+  // Interruptor do modo focado total (suprime revisões/blocos das áreas com 0%)
+  var fhEl=document.getElementById('disc-focus-hard');
+  if(fhEl){
+    var spCfg=STATE.schedulerParams||{};
+    spCfg.focusHard=fhEl.checked?1:0;
+    STATE.schedulerParams=spCfg;
+  }
   persistState(); queueCloudSave();
   _spOfferReplanCurrentWeek(true); // aplica à semana atual se o usuário quiser
   invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
@@ -1450,7 +1464,8 @@ function SP(){var p=STATE.schedulerParams||{};return {
   maxNewPct:     p.maxNewPct!=null?p.maxNewPct:60,   // TETO: % máx da semana em conteúdo novo
   rampDownWeeks: p.rampDownWeeks!=null?p.rampDownWeeks:4, // semanas finais sem novo conteúdo
   interleave:    p.interleave!=null?p.interleave:1,  // intercalar disciplinas na semana
-  easeFactor:    p.easeFactor!=null?p.easeFactor:1   // fator de facilidade SM-2 nos intervalos
+  easeFactor:    p.easeFactor!=null?p.easeFactor:1,  // fator de facilidade SM-2 nos intervalos
+  focusHard:     p.focusHard!=null?p.focusHard:0     // modo focado total: 0% suprime também revisões/blocos
 };}
 // Início da "semana de estudo" — dia configurável (SP().weekStartDay).
 // Todo cálculo de semana (scheduler, plano congelado, snapshots, heatmap
@@ -1531,9 +1546,14 @@ function recomputeScheduler(){
   const start=_weekStart(TODAY);
 
   // Pools (consumed as weeks are built)
-  const overdueRevs   =[...all.filter(t=>t.revStatus==='late')].sort((a,b)=>b.priority-a.priority);
-  const upcomingRevs  =[...all.filter(t=>t.nextRev&&t.revStatus!=='late'&&t.revStatus!=='none')].sort((a,b)=>b.priority-a.priority);
-  const blockPool     =[...all.filter(t=>t.pendingBlocks.length>0)].sort((a,b)=>b.priority-a.priority);
+  // Modo focado TOTAL (interruptor): áreas com proporção 0% têm também
+  // revisões e blocos suprimidos do cronograma. Nada se perde — ao devolver
+  // proporção à área, as revisões adiadas reaparecem como atrasadas.
+  const _fh=SP().focusHard;
+  const _discOk=t=>!(_fh && (discW[t.disc]!=null?discW[t.disc]:0.2)<=0);
+  const overdueRevs   =[...all.filter(t=>t.revStatus==='late'&&_discOk(t))].sort((a,b)=>b.priority-a.priority);
+  const upcomingRevs  =[...all.filter(t=>t.nextRev&&t.revStatus!=='late'&&t.revStatus!=='none'&&_discOk(t))].sort((a,b)=>b.priority-a.priority);
+  const blockPool     =[...all.filter(t=>t.pendingBlocks.length>0&&_discOk(t))].sort((a,b)=>b.priority-a.priority);
   const newPool       =[...all.filter(t=>t.stage==='CONTENT_SEEN'||t.stage==='NOT_STARTED')].sort((a,b)=>b.priority-a.priority);
 
   // Exam date config: use saved date or fallback to 26 weeks
@@ -2245,8 +2265,11 @@ function semAddMore(){
     return true;
   }
   var sp=SP();
+  // Modo focado total: áreas com 0% ficam fora também de revisões/blocos
+  var _dwFH=getDiscWeights(), _fhOn=sp.focusHard;
+  function _discOkAdd(t){ return !(_fhOn && (_dwFH[t.disc]!=null?_dwFH[t.disc]:0.2)<=0); }
   // 1. revisão espaçada atrasada
-  var cand=all.filter(function(t){return t.revStatus==='late'&&!inPlan[t.id];})
+  var cand=all.filter(function(t){return t.revStatus==='late'&&!inPlan[t.id]&&_discOkAdd(t);})
     .sort(function(a,b){return b.priority-a.priority;})[0];
   if(cand){
     pushTask({type:'SPACED_REV',topicId:cand.id,disc:cand.disc,n:cand.n,pct:cand.pct,min:sp.minRev,
@@ -2254,7 +2277,7 @@ function semAddMore(){
       explain:'Adicionado manualmente · SM-2 intervalo '+cand.revInterval+'d'});
   } else {
     // 2. bloco Q2/Q3 devido
-    cand=all.filter(function(t){return !inPlan[t.id]&&t.pendingBlocks.some(function(b){return b.overdue||(b.due>=curISO&&b.due<=wkEnd);});})
+    cand=all.filter(function(t){return !inPlan[t.id]&&_discOkAdd(t)&&t.pendingBlocks.some(function(b){return b.overdue||(b.due>=curISO&&b.due<=wkEnd);});})
       .sort(function(a,b){return b.priority-a.priority;})[0];
     if(cand){
       var blk=cand.pendingBlocks.find(function(b){return b.overdue||(b.due>=curISO&&b.due<=wkEnd);});
@@ -2264,10 +2287,10 @@ function semAddMore(){
         explain:'Adicionado manualmente · '+blk.block+' vence '+fmtD(blk.due)});
     } else {
       // 3. revisão que vence nesta semana — ou ANTECIPA a próxima a vencer
-      cand=all.filter(function(t){return !inPlan[t.id]&&t.nextRev&&t.nextRev>=curISO&&t.nextRev<=wkEnd&&t.revStatus!=='late';})
+      cand=all.filter(function(t){return !inPlan[t.id]&&t.nextRev&&t.nextRev>=curISO&&t.nextRev<=wkEnd&&t.revStatus!=='late'&&_discOkAdd(t);})
         .sort(function(a,b){return b.priority-a.priority;})[0];
       if(!cand){
-        cand=all.filter(function(t){return !inPlan[t.id]&&t.nextRev&&t.nextRev>wkEnd;})
+        cand=all.filter(function(t){return !inPlan[t.id]&&t.nextRev&&t.nextRev>wkEnd&&_discOkAdd(t);})
           .sort(function(a,b){return a.nextRev.localeCompare(b.nextRev);})[0];
         if(cand){
           pushTask({type:'SPACED_REV',topicId:cand.id,disc:cand.disc,n:cand.n,pct:cand.pct,min:sp.minRev,

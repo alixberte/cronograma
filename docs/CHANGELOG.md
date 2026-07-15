@@ -393,6 +393,16 @@ Verificado:
 
 ---
 
+## v4.1
+
+Adicionado:
+
+- **Interruptor "Modo focado total"** na seção Proporção de estudo por grande área: com ele ligado, áreas com 0% ficam fora também das **revisões e blocos Q2/Q3** (não apenas do conteúdo novo). Padrão: desligado — revisões continuam aparecendo para preservar a consolidação SM-2
+- Nada se perde: as revisões suprimidas voltam como atrasadas quando a área recebe proporção novamente
+- O interruptor vale para o scheduler inteiro e para o botão "Adicionar mais"; persiste em `schedulerParams.focusHard` (sincroniza na nuvem)
+
+---
+
 ## Próxima Versão
 
 Planejado:
