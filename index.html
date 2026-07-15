@@ -1406,6 +1406,17 @@ function computeAll(){
     +(typeof BANCA_CFG!=='undefined'?':'+BANCA_CFG.amrigs.toFixed(2)+BANCA_CFG.amp.toFixed(2):'');
   if(_cache&&_cacheKey===key) return _cache;
   _cache=PLANILHA.map(computeTopic);
+  // Assuntos EXTRAS (fora da PLANILHA) registrados pelo usuário — ex.: tema
+  // avulso pedido pela faculdade. Entram no ciclo normal do sistema (Q2/Q3
+  // pendentes, revisões SM-2), com incidência 0 (prioridade baixa por design).
+  const _known=new Set(PLANILHA.map(p=>p.n));
+  const _seenExtra=new Set();
+  STATE.sessions.forEach(s=>{
+    if(s.n&&!_known.has(s.n)&&!_seenExtra.has(s.n)){
+      _seenExtra.add(s.n);
+      _cache.push(computeTopic({id:'CUSTOM::'+s.n,disc:s.disc||'CLM',topico:'EXTRA',n:s.n,am:0,ap:0,sa:0,sc:0}));
+    }
+  });
   _cacheKey=key;
   return _cache;
 }
@@ -1826,6 +1837,44 @@ function _refreshCronMetricsOnly(){
     {l:'Semanas geradas',v:WEEKS.length,s:'auto-derivadas'},
   ].map(m=>`<div class="mc"><div class="ml">${m.l}</div><div class="mv" style="${m.c||''};${String(m.v).length>10?'font-size:12px':''}">${m.v}</div><div class="ms">${m.s}</div></div>`).join('');
 }
+function openTopicById(id){
+  var t=computeAll().find(function(x){return x.id===id;});
+  if(t) openTopicModal(t);
+}
+
+// Sessão registrada para assunto FORA do plano da semana (ex.: tema avulso da
+// faculdade): inclui a tarefa correspondente no board da semana, já marcada
+// como concluída — contabiliza no cumprimento/horas e fica visível ao lado.
+function _ensureSessionInWeekPlan(sess){
+  var curISO=_mondayISO();
+  var plan=STATE.weekPlans[curISO];
+  if(!plan) return false; // semana ainda não congelada — o freeze já incluirá o estado novo
+  var TYPE_MAP={CONTENT_SEEN:'NEW',Q1_DONE:'Q1_TASK',Q2_DONE:'Q2_TASK',Q3_DONE:'Q3_TASK',
+    SPACED_REV:'SPACED_REV',THEORY_REV:'SPACED_REV',QUICK_REV:'SPACED_REV',ERROR_REV:'SPACED_REV',FINAL_REV:'SPACED_REV'};
+  var type=TYPE_MAP[sess.tipo];
+  if(!type) return false;
+  // Se já existe tarefa compatível no plano, o auto-match cuida do check — não duplica
+  var exists=plan.some(function(t){
+    if(t.n!==sess.n) return false;
+    if(t.type==='SPACED_REV'&&type==='SPACED_REV') return true;
+    if(t.type==='NEW'&&(type==='NEW'||type==='Q1_TASK')) return true;
+    return t.type===type;
+  });
+  if(exists) return false;
+  var pl=PLANILHA.find(function(p){return p.n===sess.n;});
+  var topicId=pl?pl.id:('CUSTOM::'+sess.n);
+  var uid=curISO+'_'+type+'_'+topicId;
+  if(plan.some(function(p){return (p.uid||'')===uid;})) return false;
+  var TL={NEW:'Novo conteúdo',Q1_TASK:'Bloco Q1',Q2_TASK:'Bloco Q2',Q3_TASK:'Bloco Q3',SPACED_REV:'Revisão'};
+  plan.push({type:type,topicId:topicId,disc:sess.disc,n:sess.n,
+    uid:uid,idx:plan.length,min:_minForType(type),
+    label:'📌 '+(TL[type]||type)+' (extra): '+sess.n+' ('+(sess.disc||'')+')',
+    explain:'Incluído automaticamente pelo registro — fora do plano original'});
+  if(!STATE.weekExecution[curISO]) STATE.weekExecution[curISO]={};
+  STATE.weekExecution[curISO][uid]={completed:true,completed_at:Date.now(),source:'quick'};
+  return true;
+}
+
 function doSave(){
   const n=document.getElementById('mr-n').value.trim();if(!n)return;
   const disc=document.getElementById('mr-disc').value;
@@ -1842,11 +1891,14 @@ function doSave(){
     STATE.sessions.push({id:'u'+(Date.now()+1),data,n,disc,tipo:'Q1_DONE',q:0,a:0,obs:'(Q1 gerado automaticamente — registre acertos/erros depois)'});
     STATE.heatmap[data]++;
   }
+  // Assunto fora do plano → vira tarefa extra checada no board da semana
+  var _added=(data===ISO_TODAY)?_ensureSessionInWeekPlan({n:n,disc:disc,tipo:tipo}):false;
   afterSave(); closeModal('m-reg');
   ['mr-n','mr-q','mr-a','mr-obs'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('mr-mac').style.display='none';
+  if(_added&&((document.querySelector('.page.active')||{}).id||'')==='page-semana') renderSemana();
   // Show toast feedback instead of full re-render
-  _showToast('✓ Sessão registrada');
+  _showToast(_added?'✓ Sessão registrada · incluída na semana como extra':'✓ Sessão registrada');
 }
 function doSaveQ(){
   const n=document.getElementById('sq-n').value.trim();if(!n)return;
@@ -1857,10 +1909,13 @@ function doSaveQ(){
   STATE.sessions.push({id:'u'+Date.now(),data:ISO_TODAY,n,disc,tipo,q,a,obs:''});
   if(!STATE.heatmap[ISO_TODAY]) STATE.heatmap[ISO_TODAY]=0;
   STATE.heatmap[ISO_TODAY]++;
+  // Assunto fora do plano → vira tarefa extra checada no board ao lado
+  var _added=_ensureSessionInWeekPlan({n:n,disc:disc,tipo:tipo});
   afterSave();
   ['sq-n','sq-q','sq-a'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('sq-mac').style.display='none';
-  _showToast('✓ Sessão registrada');
+  if(_added) renderSemana();
+  _showToast(_added?'✓ Sessão registrada · incluída na semana como extra':'✓ Sessão registrada');
   // Update today sessions list only (not full re-render)
   const ts=STATE.sessions.filter(s=>s.data===ISO_TODAY);
   document.getElementById('sq-today').innerHTML=ts.length?
@@ -1995,7 +2050,7 @@ function renderHoje(){
   const urgent=[...lateRevs.map(t=>({tp:'rev',t})),...lateBlks.map(t=>({tp:'blk',t}))].slice(0,8);
   document.getElementById('h-chip').textContent=urgent.length;
   document.getElementById('h-urgent').innerHTML=urgent.length?urgent.map(({tp,t})=>`
-    <div class="tc" onclick="if(event.target.closest('.tt-tog'))return;openTopicModal(computeTopic(PLANILHA.find(p=>p.id==='${t.id}')))">
+    <div class="tc" onclick="if(event.target.closest('.tt-tog'))return;openTopicById('${t.id.replace(/'/g,"\\'")}')">
       <div class="tc-main">
         <div class="tc-title">${tp==='rev'?'🔴 Rev. atrasada':'⚠ Bloco atrasado'}: ${ttHTML(t.n)} (${t.disc})</div>
         <div class="tc-meta"><span class="tp ${tp==='rev'?'tp-rev':'tp-q2'}">${tp==='rev'?'REVISÃO':'BLOCO'}</span>

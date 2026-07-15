@@ -345,6 +345,20 @@ Alterado:
 
 ---
 
+## v3.8
+
+Adicionado:
+
+- **Assuntos avulsos entram na semana e no ciclo do sistema**: registrar uma sessão (painel de "Esta semana" ou modal) de um assunto que não está no plano inclui automaticamente a tarefa "📌 (extra)" no board, já marcada como concluída — contabiliza no cumprimento e nas horas da semana
+- **Assuntos fora da PLANILHA** (ex.: tema pedido pela faculdade) agora entram na máquina de estados como tópicos `CUSTOM::` — o sistema dá continuidade normal: gera Q2/Q3 pendentes (+14d) e revisões espaçadas SM-2; incidência 0 (prioridade baixa por design, não compete com o conteúdo da prova)
+- Toast diferenciado: "✓ Sessão registrada · incluída na semana como extra"
+
+Corrigido:
+
+- Clique no card de tópico da página Hoje usava `PLANILHA.find` direto — quebraria com tópicos extras; agora usa `openTopicById()` (busca no estado computado)
+
+---
+
 ## Próxima Versão
 
 Planejado:
