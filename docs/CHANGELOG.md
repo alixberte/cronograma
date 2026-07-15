@@ -313,6 +313,25 @@ Adicionado:
 
 ---
 
+## v3.6
+
+Removido:
+
+- Configurações: cards "Preview — intervalos de revisão" e "Preview — distribuição de prioridade"
+- Página "Roadmap Mai–Nov" (item da sidebar, fases estratégicas fixas e "Volume por mês" sintético)
+
+Alterado:
+
+- **Roadmap → Performance**: a "Cobertura projetada" agora vive dentro de Performance e é 100% derivada do cronograma real — projeção = Q3 atuais + Q3/novos efetivamente agendados nas semanas até a prova. Atualiza sozinha com qualquer mudança nas configurações (horas, %, pesos, dia da semana, data da prova). Barra dupla: sólida = atual, translúcida = projetado
+- **Acerto por área**: barras verticais — grande área no eixo X, % de acerto no eixo Y (0–100%), cor própria de cada área (mesma paleta do resto do dash)
+- **Heatmap horizontal** (colunas = semanas, linhas = dias, com rolagem): início = criação da conta (ou primeira atividade registrada), fim = data da prova configurada no sistema (fallback 26 semanas); chip mostra o intervalo real
+
+Adicionado:
+
+- **Evolução nos simulados** (Performance): gráfico de linha com % de acerto no eixo Y e prova/ano no eixo X, pontos coloridos por faixa de acerto; estado vazio amigável quando não há simulados
+
+---
+
 ## Próxima Versão
 
 Planejado:
