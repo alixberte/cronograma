@@ -3445,6 +3445,20 @@ function renderWeekHistDetail(wkISO){
   return out;
 }
 
+// Exclui uma semana do histórico (uma a uma). Não afeta o cronograma atual —
+// weekHistory é um arquivo de semanas já encerradas.
+function delWeekHist(wkISO){
+  var wh=STATE.weekHistory||{};
+  if(!wh[wkISO]) return;
+  var lbl=wh[wkISO].label||wkISO;
+  if(!confirm('Excluir a semana "'+lbl+'" do histórico?\n\nEsta ação não pode ser desfeita (mas há backups semanais em Minha conta, se precisar restaurar).')) return;
+  delete STATE.weekHistory[wkISO];
+  persistState();
+  queueCloudSave();
+  renderHistSemanal();
+  _showToast('🗑 Semana removida do histórico');
+}
+
 function renderHistSemanal(){
   // Metrics strip
   var wh=STATE.weekHistory||{};
@@ -3488,6 +3502,7 @@ function renderHistSemanal(){
         +'</div>'
         +'<div style="display:flex;align-items:center;gap:8px">'
           +'<span style="font-size:14px;font-weight:700;color:'+pC+'">'+h.completionRate+'%</span>'
+          +'<button class="btn btn-sm" title="Excluir esta semana do histórico" onclick="event.stopPropagation();delWeekHist(\''+wkISO.replace(/'/g,"\\'")+'\')" style="color:var(--red);border-color:var(--b);padding:2px 7px">&#128465;</button>'
           +'<span id="'+aid+'" style="color:var(--t3);font-size:14px;transition:transform .2s">&#8250;</span>'
         +'</div>'
       +'</div>'
