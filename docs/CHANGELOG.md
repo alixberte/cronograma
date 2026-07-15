@@ -372,6 +372,37 @@ Nota:
 
 ---
 
+## v4.0
+
+Corrigido:
+
+- **Proporção de estudo por grande área com 0% agora exclui a área do conteúdo novo** (estudo focado): o bug era `discW[disc]||0.2`, que tratava peso 0 como ausente e aplicava 20% de fallback, mais um piso de 1 slot por área. Revisões/blocos de outras áreas continuam aparecendo por design — são consolidação do que já foi estudado (SM-2 não pode ser pulado sem perda)
+- "Adicionar mais" também respeita a exclusão por proporção 0%
+- Proporções por área agora sincronizam na nuvem (`STATE.discCfg`) e oferecem replanejar a semana atual ao salvar
+
+Adicionado:
+
+- **Simulados**: campos de texto livre para Banca (ex.: USP, ENARE) e Ano; o gráfico de evolução em Performance usa "banca + ano" escritos no eixo X
+- **Pop-up de registro em tarefa de conteúdo novo** explica as duas formas de salvar: sem questões = só conteúdo novo (teoria); com questões e acertos = conteúdo novo + bloco Q1 automaticamente
+- **Pesos das bancas com rebalanceio automático**: mover AMRIGS para 80% ajusta AMP para 20% instantaneamente (e vice-versa). Algoritmo N-ário: com mais bancas no futuro, as demais são redistribuídas proporcionalmente às suas razões atuais, fechando sempre em 100% (`BANCA_KEYS` centraliza a lista)
+- Aplicar pesos de banca também oferece replanejar a semana atual
+
+Verificado:
+
+- Fluxo dos pesos de banca no scheduler está íntegro: sliders → `BANCA_CFG` normalizado → incidência ponderada → prioridade → ordenação dos pools; cache invalida ao mudar; persiste em `STATE.bancaCfg` (nuvem)
+
+---
+
+## v4.1
+
+Adicionado:
+
+- **Interruptor "Modo focado total"** na seção Proporção de estudo por grande área: com ele ligado, áreas com 0% ficam fora também das **revisões e blocos Q2/Q3** (não apenas do conteúdo novo). Padrão: desligado — revisões continuam aparecendo para preservar a consolidação SM-2
+- Nada se perde: as revisões suprimidas voltam como atrasadas quando a área recebe proporção novamente
+- O interruptor vale para o scheduler inteiro e para o botão "Adicionar mais"; persiste em `schedulerParams.focusHard` (sincroniza na nuvem)
+
+---
+
 ## Próxima Versão
 
 Planejado:
