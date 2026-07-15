@@ -285,6 +285,22 @@ Corrigido:
 
 ---
 
+## v3.4
+
+Alterado (fórmula de prioridade — foco em incidência + consolidação):
+
+- **Lacuna ponderada pela incidência**: `dificuldade×0,4×(inc/10)` — errar tema raro não sobe mais o score; a lacuna só pesa proporcional ao quanto o tema cai na prova
+- **Consolidação no score**: −8 pontos por revisão espaçada concluída com ≥80% (teto −24) — temas sólidos descem na fila
+- **Esfriamento no score**: até +20 pontos conforme o tempo sem contato se aproxima/ultrapassa o intervalo SM-2 — temas esfriando sobem
+- **Proximidade da prova** agora amplifica apenas incidência + lacuna (não estágio/blocos)
+- Fórmula unificada em `_priorityScore()`/`_priorityParts()` — `computeTopic` e o patch de bancas usam o mesmo código (elimina risco de divergência)
+
+Adicionado:
+
+- **Pop-up "Como a prioridade é calculada"**: clique no valor da prioridade (Fila inteligente ou modal do tópico) para ver o breakdown real do score daquele tema, componente a componente, com explicação de cada parcela
+
+---
+
 ## Próxima Versão
 
 Planejado:
