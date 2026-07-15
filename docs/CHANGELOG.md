@@ -301,6 +301,18 @@ Adicionado:
 
 ---
 
+## v3.5
+
+Corrigido (privacidade):
+
+- **Banners das páginas de disciplina eram textos fixos no HTML com o progresso pessoal do fundador** ("GO — Fisiologia gestação 61.7%... REVISÃO VENCIDA") — apareciam para QUALQUER usuário logado, dando a impressão de troca de dados entre contas (não havia troca real: sessões/progresso sempre foram isolados por conta). Agora os banners são gerados dinamicamente pelo `renderMap()` com os dados do usuário logado: nº de assuntos, Q3 dominados, peso na prova e revisões vencidas DELE
+
+Adicionado:
+
+- **Dia de início da semana configurável** (Parâmetros de tempo → "Semana começa em"): qualquer dia de domingo a sábado (padrão segunda). Todo o sistema passa pelo novo helper `_weekStart()/_weekStartISO()` — scheduler, plano congelado, snapshots, sessões da semana; `_mondayISO()` virou alias. Mudar o dia oferece replanejar a semana atual
+
+---
+
 ## Próxima Versão
 
 Planejado:
