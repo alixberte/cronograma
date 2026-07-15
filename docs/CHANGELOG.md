@@ -359,6 +359,19 @@ Corrigido:
 
 ---
 
+## v3.9
+
+Adicionado:
+
+- **Excluir semanas do Histórico Semanal, uma a uma**: cada entrada ganhou um botão 🗑 no cabeçalho. `delWeekHist(wkISO)` remove a semana com confirmação, persiste e sincroniza na nuvem. Não afeta o cronograma atual (weekHistory é arquivo de semanas encerradas); backups semanais em Minha conta continuam disponíveis para restaurar se necessário
+- O botão de exclusão usa `stopPropagation` para não abrir/fechar o acordeão da semana
+
+Nota:
+
+- O botão "↻ Fechar semanas passadas" continua existindo — ele arquiva semanas vencidas ainda não fechadas (só age quando há o que fechar); a exclusão pedida é a nova funcionalidade acima
+
+---
+
 ## Próxima Versão
 
 Planejado:
