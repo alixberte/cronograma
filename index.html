@@ -324,6 +324,40 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   </div>
 </div></div>
 
+<!-- MODAL: Boas-vindas (primeira entrada de uma conta nova) -->
+<div class="modal-bg" id="m-welcome" style="z-index:1002">
+<div class="modal" style="width:520px">
+  <div class="modal-title">🎯 Bem-vindo(a) ao QG Residência!</div>
+  <div style="font-size:12px;color:var(--t2);line-height:1.75">
+    <p style="margin-bottom:10px"><strong>Sua aprovação começa com estratégia.</strong> Este sistema foi desenhado
+    para maximizar seus acertos estudando primeiro <strong>o que mais cai na sua prova</strong> — e refinando o
+    plano continuamente com a <strong>sua própria evolução</strong>.</p>
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t)">Como funciona</div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;font-size:11.5px">
+      <div>📋 <strong>Registre cada sessão de estudo</strong> — conteúdo visto, questões feitas e acertos.
+        Todo o resto deriva desses registros.</div>
+      <div>🎯 <strong>Prioridade inteligente</strong> — os temas são ranqueados pela incidência real de questões
+        nas bancas e pelo seu desempenho: você estuda primeiro onde há mais pontos a ganhar.</div>
+      <div>🔁 <strong>Ciclo de consolidação</strong> — cada tema segue Conteúdo → Q1 → Q2 → Q3 → revisões
+        espaçadas, com intervalos que se adaptam aos seus acertos (método SM-2).</div>
+      <div>📊 <strong>Cronograma vivo</strong> — a cada registro, sua semana e as projeções se recalculam
+        sozinhas. Seu plano de hoje sempre reflete seu estado de hoje.</div>
+    </div>
+    <div class="alert a-blu" style="font-size:11px;line-height:1.7;margin-bottom:4px">
+      <strong>Antes de começar, ajuste em ⚙ Configurações:</strong><br>
+      • <strong>Data da prova</strong> — ativa a contagem regressiva e a reta final de revisões<br>
+      • <strong>Horas por semana</strong> e o dia em que sua semana de estudos começa<br>
+      • <strong>Pesos das bancas</strong> conforme a sua prova-alvo<br>
+      • <strong>Otimização de estudos</strong> — mínimo de conteúdos novos, limite de % e interleaving
+    </div>
+    <p style="font-size:11px;color:var(--t3);margin-top:8px">Consistência + estratégia = aprovação. Bons estudos! 💪</p>
+  </div>
+  <div style="display:flex;gap:7px;margin-top:12px;justify-content:flex-end">
+    <button class="btn" onclick="closeModal('m-welcome')">Começar agora</button>
+    <button class="btn btn-k" onclick="closeModal('m-welcome');NAV('config',null)">⚙ Ajustar configurações</button>
+  </div>
+</div></div>
+
 <!-- MODAL: IO -->
 <div class="modal-bg" id="m-io">
 <div class="modal">
@@ -2837,17 +2871,16 @@ function renderPerf(){
 }
 function renderHeatmap(){
   const hm=document.getElementById('heatmap');if(!hm)return;hm.innerHTML='';
-  // Início = criação da conta (perfil) ou primeira atividade registrada;
-  // fim = data da prova configurada no sistema (fallback: 26 semanas à frente).
-  let startISO=null;
-  try{ if(USER_PROFILE&&USER_PROFILE.criadoEm) startISO=USER_PROFILE.criadoEm.split('T')[0]; }catch(e){}
+  // Janela móvel: últimos 6 meses até hoje — desliza automaticamente com o tempo.
+  // Se a conta for mais nova que 6 meses, começa na criação/primeira atividade.
+  let startISO=addDays(ISO_TODAY,-182);
+  let accountStart=null;
+  try{ if(USER_PROFILE&&USER_PROFILE.criadoEm) accountStart=USER_PROFILE.criadoEm.split('T')[0]; }catch(e){}
   const firstSess=STATE.sessions.length?STATE.sessions[0].data:null;
   const firstHm=Object.keys(STATE.heatmap||{}).sort()[0]||null;
-  [firstSess,firstHm].forEach(d=>{ if(d&&(!startISO||d<startISO)) startISO=d; });
-  if(!startISO) startISO=ISO_TODAY;
-  let endISO=null;
-  try{ const ec=JSON.parse(localStorage.getItem('qg_exam_date')||'null'); if(ec&&ec.date) endISO=ec.date; }catch(e){}
-  if(!endISO||endISO<=startISO) endISO=addDays(ISO_TODAY,26*7);
+  [firstSess,firstHm].forEach(d=>{ if(d&&(!accountStart||d<accountStart)) accountStart=d; });
+  if(accountStart&&accountStart>startISO) startISO=accountStart;
+  const endISO=ISO_TODAY;
   const start=new Date(startISO+'T12:00:00'), end=new Date(endISO+'T12:00:00');
   const rangeEl=document.getElementById('hm-range');
   if(rangeEl) rangeEl.textContent=fmtD(startISO)+' → '+fmtD(endISO);
@@ -3696,7 +3729,8 @@ function syncMerge(local, remote) {
   return {sessions:sessions, simulados:Object.values(simMap), weekExecution:weekExecution,
     weekPlans:weekPlans, weekHistory:weekHistory, schedulerParams:schedulerParams, heatmap:heatmap,
     srCfg:srCfg, bancaCfg:bancaCfg,
-    planilhaBaseline: !!(local.planilhaBaseline||remote.planilhaBaseline), v:5};
+    planilhaBaseline: !!(local.planilhaBaseline||remote.planilhaBaseline),
+    onboarded: !!(local.onboarded||remote.onboarded), v:5};
 }
 
 // ── Auth ──────────────────────────────────────────────
@@ -3731,6 +3765,7 @@ function _authFields(){
 // carregado do Firestore no login (campo "profile" de users/{uid})
 let USER_PROFILE = null;
 let _signupMode = false;
+let _pendingWelcome = false; // pop-up de boas-vindas pendente (primeira entrada de conta nova)
 
 function authToggleMode(){
   _signupMode=!_signupMode;
@@ -3879,6 +3914,12 @@ async function _adoptUser(user){
         }
       }catch(e){}
     }
+    // Onboarding: conta nova de verdade (sem dados na nuvem e sem importação)
+    // vê o pop-up de boas-vindas uma única vez; marcador sincroniza na nuvem.
+    if(!STATE.onboarded && (STATE.sessions||[]).length===0){
+      _pendingWelcome=true;
+    }
+    STATE.onboarded=true;
     persistState();
     await syncSave();  // cria o documento na nuvem
   } else {
@@ -3913,6 +3954,10 @@ AUTH.onAuthStateChanged(async function(user){
     await _adoptUser(user);
     if(ov) ov.style.display='none';
     syncUpdateUI();
+    if(_pendingWelcome){
+      _pendingWelcome=false;
+      document.getElementById('m-welcome').classList.add('open');
+    }
   } else {
     CURRENT_UID = null;
     localStorage.removeItem('qg_last_uid');

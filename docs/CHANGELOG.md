@@ -332,6 +332,19 @@ Adicionado:
 
 ---
 
+## v3.7
+
+Adicionado:
+
+- **Pop-up de boas-vindas no primeiro login de conta nova**: explica em tom profissional e otimista como o sistema funciona (registro de sessões → prioridade por incidência da banca + evolução própria → ciclo Q1/Q2/Q3 → revisões espaçadas → cronograma vivo) e orienta os ajustes iniciais em Configurações (data da prova, horas/semana, pesos das bancas, otimização de estudos). Botões "Começar agora" e "⚙ Ajustar configurações"
+- Marcador `onboarded` no STATE (sincroniza na nuvem) — o pop-up aparece uma única vez, apenas para contas realmente novas (sem dados importados); contas existentes nunca o veem
+
+Alterado:
+
+- **Heatmap com janela móvel de 6 meses**: mostra sempre os últimos 6 meses até hoje, deslizando automaticamente com o passar do tempo; contas mais novas que 6 meses começam na criação/primeira atividade
+
+---
+
 ## Próxima Versão
 
 Planejado:
