@@ -314,6 +314,16 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   </div>
 </div></div>
 
+<!-- MODAL: Priority explainer -->
+<div class="modal-bg" id="m-pri" style="z-index:1001">
+<div class="modal" style="width:440px">
+  <div class="modal-title">🎯 Como a prioridade é calculada</div>
+  <div id="m-pri-body"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:11px">
+    <button class="btn" onclick="closeModal('m-pri')">Fechar</button>
+  </div>
+</div></div>
+
 <!-- MODAL: IO -->
 <div class="modal-bg" id="m-io">
 <div class="modal">
@@ -492,7 +502,7 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
   </div>
   <div class="card">
     <div class="ch"><div class="ctt">Fila completa</div><span id="fila-cnt" class="chip cdk">—</span></div>
-    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>#</th><th>Assunto</th><th>Área</th><th>Próxima ação</th><th>Prioridade</th><th>Incidência</th><th>Acerto</th><th>Status</th><th>Explicação</th><th></th></tr></thead><tbody id="fila-tbody"></tbody></table></div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>#</th><th>Assunto</th><th>Área</th><th>Próxima ação</th><th style="cursor:help" onclick="showPriorityInfo()" title="Clique para entender o cálculo">Prioridade ⓘ</th><th>Incidência</th><th>Acerto</th><th>Status</th><th>Explicação</th><th></th></tr></thead><tbody id="fila-tbody"></tbody></table></div>
   </div>
 </div>
 
@@ -1231,6 +1241,29 @@ srLoadCfg(); // re-lê: agora com STATE disponível (config sincronizada vence a
 // LAYER 4 — TOPIC STATE MACHINE
 // HIGHEST MILESTONE WINS. Real dates always prevail.
 // ═══════════════════════════════════════════════════════
+
+// Fórmula ÚNICA de prioridade — usada por computeTopic e pelo patch de bancas.
+// Desenho alinhado à preparação para prova:
+//  · incidência é o fator dominante (×3,5)
+//  · a lacuna de acerto só pesa PROPORCIONAL à incidência (errar tema raro não sobe score)
+//  · consolidação desconta: cada revisão com ≥80% vale −8 (até −24)
+//  · esfriamento acresce: quanto mais o tema fica sem contato vs. o intervalo SM-2, até +20
+//  · proximidade da prova amplifica APENAS incidência+lacuna (não estágio/blocos)
+function _priorityParts(f){
+  const incNorm = Math.min(1,(f.inc||0)/10);
+  const incTerm = (f.inc||0)*3.5;
+  const diffPen = (f.pct!==null&&f.pct!==undefined?Math.max(0,100-f.pct):55)*0.4*incNorm;
+  const stageW  = {NOT_STARTED:0,CONTENT_SEEN:8,Q1_DONE:20,Q2_DONE:30,Q3_DONE:0}[f.stage]||0;
+  const blockUrg= (f.pendingBlocks||[]).some(b=>b.overdue)?15:(f.pendingBlocks||[]).length?6:0;
+  const consol  = -Math.min(24,(f.revGood||0)*8);
+  const cooling = f.coolPts||0;
+  const discTerm= (f.discWeight||0)*50;
+  const proxMult= 1+clamp((1-DIAS_PROVA/540),0,0.5);
+  const total   = Math.round((incTerm+diffPen)*proxMult + stageW + blockUrg + discTerm + consol + cooling);
+  return {incTerm,diffPen,stageW,blockUrg,consol,cooling,discTerm,proxMult,total};
+}
+function _priorityScore(f){ return _priorityParts(f).total; }
+
 function computeTopic(base){
   // Multi-usuário: os campos pessoais da PLANILHA (stage/q/a/pct/r1-r3, gerados
   // pela planilha Python do fundador) são IGNORADOS. Todo progresso deriva
@@ -1280,6 +1313,7 @@ function computeTopic(base){
 
   // SPACED REPETITION (SM-2 simplified). Only after Q3_DONE.
   let nextRev=null, revInterval=null, revStatus='none', extStage=stage;
+  let coolPts=0; // esfriamento: pontos de prioridade por tempo sem contato (0–20)
   if(stage==='Q3_DONE'){
     const p=revPct!==null?revPct:70;
     // Intervalo base = faixa de acerto da última revisão (comportamento pedido pelo usuário)
@@ -1304,6 +1338,10 @@ function computeTopic(base){
     else if(d<=7){revStatus='week'; extStage='REV_ACTIVE';}
     else{revStatus='ok'; extStage=p>=85?'MASTERED':'REV_ACTIVE';}
     if(revPct!==null&&revPct<65&&d<0) extStage='REV_CRITICAL';
+    // Esfriamento: fração do intervalo SM-2 já decorrida desde o último contato.
+    // 0 = revisou agora · 10 = intervalo completo · 20 = 2× o intervalo sem contato.
+    const elapsed=daysDiff(baseDate, ISO_TODAY);
+    coolPts=Math.round(clamp(elapsed/Math.max(1,revInterval),0,2)*10);
   }
 
   // AUTO-GENERATED PENDING BLOCKS
@@ -1322,14 +1360,11 @@ function computeTopic(base){
   const dw=DISC_WEIGHTS.by_disc[base.disc];
   const discTotal=dw?dw.total:100;
   const discWeight=discTotal/1856;
-  const stageW={NOT_STARTED:0,CONTENT_SEEN:8,Q1_DONE:20,Q2_DONE:30,Q3_DONE:0}[stage]||0;
-  const diffPenalty=pct!==null?Math.max(0,100-pct):55;
-  // urgency removido: atraso não influencia prioridade (incidência é o fator dominante)
-  const blockUrg=pendingBlocks.some(b=>b.overdue)?15:pendingBlocks.length?6:0;
-  const proxMult=1+clamp((1-DIAS_PROVA/540),0,0.5);
-  const priority=Math.round((inc*3.5+diffPenalty*0.4+stageW+blockUrg+discWeight*50)*proxMult);
+  // Consolidação: nº de revisões espaçadas concluídas com ≥80% de acerto
+  const revGood=revHistory.filter(p=>p>=80).length;
+  const priority=_priorityScore({inc,pct,stage,pendingBlocks,discWeight,revGood,coolPts});
 
-  return {...base,r1,r2,r3,q,a,pct,stage,extStage,nextRev,revInterval,revStatus,pendingBlocks,priority,inc,discWeight};
+  return {...base,r1,r2,r3,q,a,pct,stage,extStage,nextRev,revInterval,revStatus,pendingBlocks,priority,inc,discWeight,revGood,coolPts};
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1813,13 +1848,59 @@ function getExpl(t){
   return `Prioridade ${t.priority} · Inc. ${t.inc} · Peso ${t.disc} ${((discW[t.disc]||0)*100).toFixed(1)}%${t.pct!==null?' · Acerto '+t.pct+'%':''}`;
 }
 
+// Pop-up explicando o score de prioridade. Com topicId, mostra o breakdown real
+// do tópico; sem, mostra só a legenda geral.
+function showPriorityInfo(topicId){
+  var t=null;
+  if(topicId){ t=computeAll().find(function(x){return x.id===topicId;}); }
+  var html='';
+  if(t){
+    var p=_priorityParts({inc:t.inc,pct:t.pct,stage:t.stage,pendingBlocks:t.pendingBlocks,
+      discWeight:t.discWeight,revGood:t.revGood,coolPts:t.coolPts});
+    var rows=[
+      ['Incidência ×3,5', Math.round(p.incTerm), 'quantas vezes o tema cai nas suas bancas — fator dominante'],
+      ['Lacuna ponderada', Math.round(p.diffPen), '100 − seu acerto, valendo só proporcional à incidência'],
+      ['Estágio do ciclo', p.stageW, 'bônus p/ fechar ciclos começados (Q1 +20 · Q2 +30)'],
+      ['Bloco pendente', p.blockUrg, 'Q2/Q3 gerado e ainda não feito (+6 · atrasado +15)'],
+      ['Peso da disciplina', Math.round(p.discTerm), 'fração da disciplina no total das provas'],
+      ['Consolidação', p.consol, '−8 por revisão com ≥80% (até −24) — tema sólido desce'],
+      ['Esfriamento', p.cooling, 'tempo sem contato vs. intervalo SM-2 (até +20) — tema esfriando sobe'],
+    ];
+    html+='<div style="font-size:12px;font-weight:600;margin-bottom:2px">'+t.n+'</div>'
+      +'<div style="font-size:10px;color:var(--t3);margin-bottom:10px">'+t.disc+' · prioridade <strong style="color:var(--t)">'+t.priority+'</strong></div>'
+      +'<table class="tbl" style="margin-bottom:10px"><tbody>'
+      +rows.map(function(r){
+        return '<tr><td style="font-size:11px">'+r[0]
+          +'<div style="font-size:9px;color:var(--t3)">'+r[2]+'</div></td>'
+          +'<td style="text-align:right;font-weight:700;color:'+(r[1]>0?'var(--t)':r[1]<0?'var(--grn)':'var(--t3)')+'">'
+          +(r[1]>0?'+':'')+r[1]+'</td></tr>';
+      }).join('')
+      +'<tr><td style="font-size:11px">Proximidade da prova <div style="font-size:9px;color:var(--t3)">multiplica incidência + lacuna conforme a prova se aproxima</div></td>'
+      +'<td style="text-align:right;font-weight:700">×'+p.proxMult.toFixed(2)+'</td></tr>'
+      +'</tbody></table>';
+  } else {
+    html+='<div style="font-size:11.5px;color:var(--t2);line-height:1.7;margin-bottom:10px">'
+      +'O score soma: <strong>incidência nas provas ×3,5</strong> (fator dominante), '
+      +'<strong>lacuna de acerto</strong> (só vale proporcional à incidência), '
+      +'<strong>estágio do ciclo</strong> (fechar Q1→Q2→Q3 primeiro), '
+      +'<strong>blocos pendentes</strong> e <strong>peso da disciplina</strong>. '
+      +'<strong>Consolidação</strong> desconta (revisões boas ⇒ tema desce) e '
+      +'<strong>esfriamento</strong> acresce (tempo sem contato ⇒ tema sobe). '
+      +'A <strong>proximidade da prova</strong> amplifica incidência + lacuna em até 1,5×.</div>';
+  }
+  html+='<div class="alert a-blu" style="font-size:10.5px;margin:0">Prioridade alta = estude antes. '
+    +'O cronograma preenche cada categoria (revisões atrasadas → blocos → revisões → conteúdo novo) nessa ordem de score.</div>';
+  document.getElementById('m-pri-body').innerHTML=html;
+  document.getElementById('m-pri').classList.add('open');
+}
+
 function openTopicModal(t){
   const pipe=['NOT_STARTED','CONTENT_SEEN','Q1_DONE','Q2_DONE','Q3_DONE'];
   const ci=pipe.indexOf(t.stage);
   document.getElementById('m-topic-body').innerHTML=`
     <div class="modal-title">${(()=>{const _ci=t.n.indexOf(":");if(_ci>-1){const _pre=t.n.slice(0,_ci).trim();const _post=t.n.slice(_ci+1).trim();return _pre+"<div style=\"font-size:11px;color:var(--t3);font-weight:400;margin-top:3px;line-height:1.4\">"+_post+"</div>";}return t.n;})()}</div>
     <div class="row mb8"><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span><span class="chip cdk">${t.topico||''}</span>
-    <span style="font-size:11px;color:var(--t3)">Inc: <strong>${t.inc}</strong> · Pri: <strong>${t.priority}</strong></span></div>
+    <span style="font-size:11px;color:var(--t3)">Inc: <strong>${t.inc}</strong> · Pri: <strong style="cursor:pointer;text-decoration:underline dotted" title="Clique para ver o cálculo" onclick="showPriorityInfo('${t.id.replace(/'/g,"\\'")}')">${t.priority} ⓘ</strong></span></div>
     <div class="pipe mb12">
       ${pipe.map((p,i)=>`<span class="pstep ${i<ci?'done-s':i===ci?'active':''}">${STAGE_LABEL[p]||p}</span>${i<pipe.length-1?'<span class="parr">›</span>':''}`).join('')}
     </div>
@@ -2411,7 +2492,7 @@ function renderFila(){
     <td style="font-weight:500">${ttHTML(t.n)}</td>
     <td><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span></td>
     <td style="font-size:11px">${getActionLabel(t)}</td>
-    <td style="font-weight:700;color:${t.priority>100?'var(--red)':t.priority>60?'var(--amb)':'var(--t)'}">${t.priority}</td>
+    <td style="font-weight:700;cursor:pointer;text-decoration:underline dotted;color:${t.priority>100?'var(--red)':t.priority>60?'var(--amb)':'var(--t)'}" title="Clique para ver o cálculo" onclick="showPriorityInfo('${t.id.replace(/'/g,"\\'")}')">${t.priority}</td>
     <td style="text-align:center">${t.inc}</td>
     <td>${t.pct!==null?`<span style="font-weight:600;color:${acColor(t.pct)}">${t.pct}%</span>`:'—'}</td>
     <td><span class="st ${STAGE_CLASS[t.extStage]||'s-pend'}">${STAGE_LABEL[t.extStage]||t.extStage}</span></td>
@@ -4076,14 +4157,12 @@ computeTopic = function(base){
     (base.am||0) * BANCA_CFG.amrigs +
     (base.ap||0) * BANCA_CFG.amp
   ); // SANAR removido
-  // Recompute priority com inc ponderado (urgency removido — incidência é fator dominante)
-  const diffPenalty = result.pct!==null ? Math.max(0,100-result.pct) : 55;
-  const stageW = {NOT_STARTED:0,CONTENT_SEEN:8,Q1_DONE:20,Q2_DONE:30,Q3_DONE:0}[result.stage]||0;
-  const blockUrg = result.pendingBlocks.some(b=>b.overdue)?15:result.pendingBlocks.length?6:0;
-  const proxMult = 1+Math.max(0,Math.min((1-DIAS_PROVA/540),0.5));
-  const priority_w = Math.round(
-    (inc_weighted*3.5 + diffPenalty*0.4 + stageW + blockUrg + result.discWeight*50) * proxMult
-  );
+  // Mesma fórmula única de _priorityScore — só a incidência muda (ponderada por banca)
+  const priority_w = _priorityScore({
+    inc:inc_weighted, pct:result.pct, stage:result.stage,
+    pendingBlocks:result.pendingBlocks, discWeight:result.discWeight,
+    revGood:result.revGood, coolPts:result.coolPts
+  });
   return {...result, inc: inc_weighted, priority: priority_w};
 };
 
