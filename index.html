@@ -496,6 +496,12 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
       <div id="sem-tasks"></div>
       <button class="btn btn-sm mt8" id="sem-add-btn" onclick="semAddMore()" style="width:100%">➕ Adicionar mais uma tarefa</button>
       <div id="sem-due" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--b2);display:none"></div>
+      <!-- FLASHCARDS: bloco diário (visível só com a funcionalidade ativada em Configurações) -->
+      <div class="card mt12" id="fc-week" style="display:none">
+        <div class="ch"><div class="ctt">🃏 Flashcards da semana</div><span class="chip cdk" id="fc-week-chip">—</span></div>
+        <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Anote o assunto do bloco de cada dia e marque quando concluir.</div>
+        <div id="fc-week-grid"></div>
+      </div>
     </div>
     <div>
       <div class="reg-panel">
@@ -629,6 +635,13 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
       <span style="display:inline-block;width:13px;height:13px;border-radius:3px;background:#047857"></span>
       Mais
     </div>
+  </div>
+  <!-- FLASHCARDS: heatmap 6 meses (visível só com a funcionalidade ativada) -->
+  <div class="card mt12" id="fc-heat-card" style="display:none">
+    <div class="ch"><div class="ctt">🃏 Flashcards — constância</div><span class="chip cdk" id="fc-heat-range">—</span></div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Últimos 6 meses · cada quadrado = 1 dia (verde = bloco feito)</div>
+    <div style="overflow-x:auto;padding-bottom:4px"><div class="hmg" id="fc-heatmap"></div></div>
+    <div class="row mt8" style="gap:7px;font-size:10px;color:var(--t3)" id="fc-heat-stats">—</div>
   </div>
 </div>
 
@@ -866,6 +879,20 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
       <button class="btn" onclick="srReset()">Restaurar padrões</button>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-top:8px">Padrões: &gt;90%→90d · &gt;80%→60d · &gt;70%→45d · &gt;60%→30d · &lt;60%→15d</div>
+  </div>
+
+  <!-- SECTION: Flashcards -->
+  <div class="card mt12">
+    <div class="ch"><div class="ctt">🃏 Flashcards</div></div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">
+      Registro diário de blocos de flashcards (Anki ou similar). Ao ativar, aparece um quadro dos 7 dias
+      em <strong>Esta semana</strong> — você anota o assunto do dia e marca quando concluir — e um heatmap
+      de constância dos últimos 6 meses em <strong>Performance</strong>. O registro é apenas feito/não feito.
+    </div>
+    <label class="row" style="cursor:pointer;font-size:12px">
+      <input type="checkbox" id="fc-enabled" onchange="fcToggle(this)">
+      <span><strong>Ativar registro de flashcards</strong></span>
+    </label>
   </div>
 
   <!-- SECTION: Diagnóstico -->
@@ -2245,6 +2272,91 @@ function quickQSave(){
   _showToast('✓ '+q+' questões registradas'+(q>0?' · '+safe_pct(a,q)+'% acerto':''));
 }
 
+// ═══════════════════════════════════════════════════════
+// FLASHCARDS — registro diário binário (feito/não feito)
+// Opt-in em Configurações; dados em STATE.flashcards (sincroniza na nuvem)
+// ═══════════════════════════════════════════════════════
+function FC(){
+  if(!STATE.flashcards) STATE.flashcards={enabled:0,days:{}};
+  if(!STATE.flashcards.days) STATE.flashcards.days={};
+  return STATE.flashcards;
+}
+function fcToggle(chk){
+  var fc=FC();
+  fc.enabled=chk.checked?1:0;
+  persistState(); queueCloudSave();
+  renderFcWeek();
+  _showToast(fc.enabled?'🃏 Flashcards ativados — veja Esta semana e Performance':'Flashcards desativados (registros preservados)');
+}
+function fcSetTopic(iso, val){
+  var fc=FC();
+  if(!fc.days[iso]) fc.days[iso]={};
+  fc.days[iso].n=val;
+  persistState(); queueCloudSave();
+}
+function fcSetDone(iso, chk){
+  var fc=FC();
+  if(!fc.days[iso]) fc.days[iso]={};
+  fc.days[iso].done=chk.checked?1:0;
+  persistState(); queueCloudSave();
+  renderFcWeek();
+}
+function renderFcWeek(){
+  var card=document.getElementById('fc-week');
+  if(!card) return;
+  var fc=FC();
+  if(!fc.enabled){ card.style.display='none'; return; }
+  card.style.display='';
+  var start=_weekStartISO();
+  var DIAS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  var doneCount=0, rows='';
+  for(var i=0;i<7;i++){
+    var iso=addDays(start,i);
+    var d=fc.days[iso]||{};
+    if(d.done) doneCount++;
+    var dt=new Date(iso+'T12:00:00');
+    var isToday=iso===ISO_TODAY;
+    rows+='<div style="display:grid;grid-template-columns:78px 1fr 24px;align-items:center;gap:8px;padding:4px 2px;border-bottom:1px solid var(--b)'+(isToday?';background:var(--s2);border-radius:4px':'')+'">'
+      +'<span style="font-size:10px;color:'+(isToday?'var(--t)':'var(--t3)')+';font-weight:'+(isToday?'700':'500')+'">'+DIAS[dt.getDay()]+' '+fmtD(iso)+'</span>'
+      +'<input type="text" value="'+String(d.n||'').replace(/"/g,'&quot;')+'" placeholder="Assunto do bloco…" style="width:100%;font-size:11px;padding:3px 8px" onchange="fcSetTopic(\''+iso+'\',this.value)">'
+      +'<input type="checkbox"'+(d.done?' checked':'')+' onchange="fcSetDone(\''+iso+'\',this)" title="Bloco de flashcards feito">'
+      +'</div>';
+  }
+  document.getElementById('fc-week-grid').innerHTML=rows;
+  var chip=document.getElementById('fc-week-chip');
+  if(chip) chip.textContent=doneCount+'/7 dias';
+}
+function renderFcHeat(){
+  var card=document.getElementById('fc-heat-card');
+  if(!card) return;
+  var fc=FC();
+  if(!fc.enabled){ card.style.display='none'; return; }
+  card.style.display='';
+  var hm=document.getElementById('fc-heatmap'); if(!hm) return; hm.innerHTML='';
+  var startISO=addDays(ISO_TODAY,-182), endISO=ISO_TODAY;
+  var rangeEl=document.getElementById('fc-heat-range');
+  if(rangeEl) rangeEl.textContent=fmtD(startISO)+' → '+fmtD(endISO);
+  var start=new Date(startISO+'T12:00:00'), end=new Date(endISO+'T12:00:00');
+  var off=start.getDay();
+  for(var i=0;i<off;i++){var b=document.createElement('div');b.style.width='15px';b.style.height='15px';hm.appendChild(b);}
+  var total=0;
+  for(var d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+    var iso=d.toISOString().split('T')[0];
+    var dd=fc.days[iso];
+    var done=!!(dd&&dd.done);
+    if(done) total++;
+    var c=document.createElement('div');
+    c.className='hmc '+(done?'hm3':'hm0');
+    c.title=d.toLocaleDateString('pt-BR')+(done?' · bloco feito'+(dd.n?' — '+dd.n:''):' · não feito');
+    hm.appendChild(c);
+  }
+  // Sequência atual (streak) terminando hoje
+  var streak=0, cur=ISO_TODAY;
+  while(fc.days[cur]&&fc.days[cur].done){ streak++; cur=addDays(cur,-1); }
+  var st=document.getElementById('fc-heat-stats');
+  if(st) st.textContent=total+' dia(s) feitos nos últimos 6 meses · sequência atual: '+streak+' dia(s)';
+}
+
 // Adiciona ao plano congelado da semana atual a próxima tarefa de maior
 // prioridade que ainda não está nele. Ordem: revisão atrasada > bloco devido
 // > revisão da semana > conteúdo novo (+ Q1). Permite ultrapassar a meta.
@@ -2481,6 +2593,9 @@ function renderSemana(){
         }).join('');
     } else { dueEl.style.display='none'; }
   }
+
+  // FLASHCARDS (visível só quando ativado em Configurações)
+  renderFcWeek();
 }
 
 
@@ -2974,7 +3089,7 @@ function renderPerf(){
       <td><strong style="color:${t.risco>=30?'var(--red)':t.risco>=20?'var(--amb)':'var(--grn)'}">${t.risco}</strong></td>
       <td style="font-size:11px">${t.risco>=30?'🔥 Urgente':t.risco>=20?'⚠ Revisar':'✓ Ok'}</td>
     </tr>`).join('');
-  renderHeatmap(); renderAreaChart(); renderEvolChart(); renderRoadCov(); renderSimChart();
+  renderHeatmap(); renderAreaChart(); renderEvolChart(); renderRoadCov(); renderSimChart(); renderFcHeat();
 }
 function renderHeatmap(){
   const hm=document.getElementById('heatmap');if(!hm)return;hm.innerHTML='';
@@ -3855,7 +3970,12 @@ function syncMerge(local, remote) {
     srCfg:srCfg, bancaCfg:bancaCfg,
     planilhaBaseline: !!(local.planilhaBaseline||remote.planilhaBaseline),
     onboarded: !!(local.onboarded||remote.onboarded),
-    discCfg: local.discCfg||remote.discCfg, v:5};
+    discCfg: local.discCfg||remote.discCfg,
+    flashcards: (function(){
+      var l=local.flashcards||{}, r=remote.flashcards||{};
+      return {enabled:(l.enabled!=null?l.enabled:r.enabled)||0,
+        days:Object.assign({},r.days||{},l.days||{})}; // união por dia, local vence
+    })(), v:5};
 }
 
 // ── Auth ──────────────────────────────────────────────
@@ -4350,6 +4470,8 @@ function cfgUpdatePriorityPreview(){
 
 function renderConfig(){
   examDateLoad();
+  var fcEl=document.getElementById('fc-enabled');
+  if(fcEl) fcEl.checked=!!FC().enabled;
   discCfgRenderSliders();
   cfgRenderBancaSliders();
   srFillForm();

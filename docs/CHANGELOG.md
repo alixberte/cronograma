@@ -403,6 +403,17 @@ Adicionado:
 
 ---
 
+## v4.2 — Flashcards (opt-in)
+
+Adicionado:
+
+- **Registro diário de flashcards**, ativável em Configurações → 🃏 Flashcards (desligado por padrão; só aparece para quem ativar)
+- **Esta semana**: quadro "🃏 Flashcards da semana" abaixo do board — 7 dias (respeitando o dia de virada configurado), campo de texto para o assunto do bloco + checkbox de concluído; dia atual destacado; chip "N/7 dias"
+- **Performance**: heatmap "🃏 Flashcards — constância" dos últimos 6 meses (janela móvel), binário (verde = bloco feito), com total de dias feitos e sequência atual (streak)
+- Dados em `STATE.flashcards {enabled, days{iso:{n,done}}}` — sincronizam na nuvem (união por dia no merge, local vence); desativar preserva os registros
+
+---
+
 ## Próxima Versão
 
 Planejado:
