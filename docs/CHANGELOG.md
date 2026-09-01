@@ -424,6 +424,24 @@ Corrigido (parâmetros que "voltavam sozinhos"):
 
 ---
 
+## v4.4 — Layout responsivo
+
+Corrigido:
+
+- **O app não tinha nenhum media query** — o layout era fixo para desktop, então em celular/tablet a barra lateral ocupava metade da tela, as grades de 4–5 colunas ficavam ilegíveis e tabelas/modais estouravam a largura da viewport
+- Erro de sintaxe CSS: um caractere solto (`h`) após a regra `.main{…}`
+
+Adicionado:
+
+- **Três breakpoints**: ≤1024px (tablet paisagem), ≤860px (celular/tablet retrato), ≤520px (celular estreito)
+- **Barra lateral vira gaveta no mobile**: botão ☰ na topbar, deslize com fundo escurecido, fecha ao tocar fora ou ao navegar
+- **Grades colapsam progressivamente**: 4 colunas → 2 → conforme a largura; blocos de 2 colunas viram coluna única no celular
+- **Tabelas rolam horizontalmente** dentro dos cards em vez de estourar (containers com `overflow-x` nas duas tabelas que faltavam)
+- **Modais ocupam a largura útil** no celular, com altura máxima e rolagem
+- **Ajustes de toque e leitura**: itens de menu e checkboxes maiores, inputs com fonte ≥16px (evita zoom automático no iOS), FAB reposicionado com espaço reservado no rodapé, painel de registro deixa de ser fixo quando empilhado
+
+---
+
 ## Próxima Versão
 
 Planejado:
