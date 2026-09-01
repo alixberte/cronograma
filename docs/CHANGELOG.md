@@ -442,6 +442,35 @@ Adicionado:
 
 ---
 
+## v4.5
+
+Corrigido:
+
+- **Contagem de dias para a prova ignorava a data configurada**: `PROVA`/`DIAS_PROVA` eram constantes fixas em `2026-11-01`, calculadas na carga do script — antes de `STATE` existir e de `loadState()` rodar — e por serem `const` nunca podiam ser atualizadas. Resultado: "61 dias · 9 semanas" aparecia independentemente da data salva em Configurações
+- A data fixa também alimentava o **multiplicador de proximidade da prioridade** (`proxMult`), então o peso de urgência do scheduler também não respondia à data real da prova
+- Agora `recalcProva()` deriva a data de `STATE.examDate` (com 01/11/2026 apenas como fallback) e é chamada após `loadState()`, no login (data vinda da nuvem), ao salvar e ao limpar a data
+- Rodapé da barra lateral deixa de exibir "Prova: Nov 2026" fixo — mostra a data configurada
+
+---
+
+## v4.5
+
+Corrigido:
+
+- **Contagem de dias para a prova ignorava a data configurada**: `PROVA`/`DIAS_PROVA` eram constantes fixas em `2026-11-01`, calculadas na carga do script — antes de `STATE` existir e de `loadState()` rodar — e por serem `const` nunca podiam ser atualizadas. A tela sempre mostrava os dias até a data fixa, qualquer que fosse a salva em Configurações
+- A data fixa também alimentava o **multiplicador de proximidade da prioridade** (`proxMult`), então o peso de urgência do scheduler também não respondia à data real
+
+Alterado:
+
+- **Nenhuma data de prova é assumida ou sugerida.** O sistema usa sempre — e somente — a data preenchida pelo usuário:
+  - Sem preenchimento, `PROVA`/`DIAS_PROVA` ficam nulos e a interface pede o preenchimento (hero da página Hoje, rodapé da barra lateral, chip do roadmap e um aviso no card de Configurações)
+  - Sem data, a prioridade usa multiplicador de proximidade **neutro** — nenhuma urgência é inferida
+  - Botão "Usar padrão (26 semanas)" virou "Limpar data"; as 26 semanas permanecem apenas como janela de renderização enquanto não há data informada
+- `recalcProva()` deriva a data de `STATE.examDate` e é chamada após `loadState()`, no login (data vinda da nuvem), ao salvar e ao limpar
+- Rodapé da barra lateral deixa de exibir "Prova: Nov 2026" fixo
+
+---
+
 ## Próxima Versão
 
 Planejado:

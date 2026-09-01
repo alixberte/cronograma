@@ -492,7 +492,7 @@ img,canvas,svg{max-width:100%}
   <div class="si" onclick="NAV('sims',this)"><span class="ic">▣</span> Simulados</div>
   <div class="si" onclick="NAV('config',this)"><span class="ic">⚙</span> Configurações</div>
   <div class="si" onclick="document.getElementById('m-io').classList.add('open')"><span class="ic">↑↓</span> Exportar / Importar</div>
-  <div class="sb-foot">Prova: <strong>Nov 2026</strong><br><span id="sb-dias">—</span></div>
+  <div class="sb-foot">Prova: <strong id="sb-prova">—</strong><br><span id="sb-dias">—</span></div>
 </nav>
 
 <div class="main">
@@ -785,7 +785,12 @@ img,canvas,svg{max-width:100%}
   <div class="card mb14">
     <div class="ch"><div class="ctt">📅 Data final do cronograma (prova)</div></div>
     <div class="alert a-blu mb12" style="font-size:11px">
-      Define até quando o cronograma deve ser planejado. Alterar e clicar <strong>Salvar</strong> recalcula o número de semanas automaticamente.
+      Informe a data (ou a sua melhor estimativa) da prova. O cronograma inteiro é planejado até ela —
+      contagem regressiva, nº de semanas, peso de urgência das prioridades e reta final de revisões.
+      <strong>Não há data padrão:</strong> sem preencher, o sistema não assume nenhuma data.
+    </div>
+    <div class="alert a-amb mb12" id="cfg-exam-missing" style="font-size:11px;display:none">
+      ⚠ <strong>Data da prova ainda não definida.</strong> Preencha abaixo para o cronograma se ajustar a ela.
     </div>
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
       <div>
@@ -796,7 +801,7 @@ img,canvas,svg{max-width:100%}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-k" onclick="examDateApply()">✅ Salvar e recalcular</button>
-      <button class="btn" onclick="examDateReset()">Usar padrão (26 semanas)</button>
+      <button class="btn" onclick="examDateReset()">Limpar data</button>
     </div>
   </div>
 
@@ -1014,7 +1019,9 @@ function examDateLoad(){
   try{
     const s=_examCfgGet();
     const el=document.getElementById('cfg-exam-date');
-    if(el && s && s.date) el.value=s.date;
+    if(el) el.value=(s&&s.date)?s.date:'';
+    const miss=document.getElementById('cfg-exam-missing');
+    if(miss) miss.style.display=(s&&s.date)?'none':'block';
     examDatePreview();
   }catch(e){}
 }
@@ -1037,17 +1044,19 @@ function examDateApply(){
   if(weeks<=0){ alert('A data selecionada já passou!'); return; }
   try{ localStorage.setItem('qg_exam_date', JSON.stringify({date:el.value})); }catch(e){}
   STATE.examDate=el.value; _touchCfg(); persistState(); queueCloudSave();
+  recalcProva();
   invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
   _showToast('Data da prova salva! Cronograma recalculado para '+weeks+' semanas.');
 }
 function examDateReset(){
   try{ localStorage.removeItem('qg_exam_date'); }catch(e){}
   STATE.examDate=null; _touchCfg(); persistState(); queueCloudSave();
+  recalcProva();
   const el=document.getElementById('cfg-exam-date');
   if(el) el.value='';
   examDatePreview();
   invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
-  _showToast('Data removida. Cronograma usando padrão de 26 semanas.');
+  _showToast('Data removida — defina a data da prova para o cronograma se ajustar a ela.');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1196,8 +1205,23 @@ srLoadCfg();
 // ═══════════════════════════════════════════════════════
 const TODAY = (()=>{const d=new Date();d.setHours(12,0,0,0);return d;})();
 const ISO_TODAY = TODAY.toISOString().split('T')[0];
-const PROVA = new Date('2026-11-01T12:00:00');
-const DIAS_PROVA = Math.ceil((PROVA-TODAY)/864e5);
+// Data da prova: SEMPRE a que o usuário preencheu em Configurações
+// (STATE.examDate, sincronizado). Não existe data padrão nem sugerida — sem
+// preenchimento, PROVA/DIAS_PROVA ficam null e a interface pede o preenchimento.
+// Recalculável porque estas linhas rodam antes de loadState().
+let PROVA = null;
+let DIAS_PROVA = null;
+function recalcProva(){
+  var iso=null;
+  try{ var c=_examCfgGet(); if(c&&c.date) iso=c.date; }catch(e){}
+  if(iso){
+    PROVA = new Date(iso+'T12:00:00');
+    DIAS_PROVA = Math.ceil((PROVA-TODAY)/864e5);
+  } else {
+    PROVA = null; DIAS_PROVA = null;
+  }
+  return DIAS_PROVA;
+}
 const DISC_COLOR = {CLM:'#1a56db',CLC:'#0b7a5e',GO:'#5b21b6',PED:'#b05a00',PREVENTIVA:'#166534'};
 const DISC_CHIP  = {CLM:'cbl',CLC:'ctl',GO:'cpr',PED:'cam',PREVENTIVA:'cgr'};
 const DISC_FULL  = {CLM:'Clínica Médica',CLC:'Cirurgia',GO:'GO',PED:'Pediatria',PREVENTIVA:'Preventiva'};
@@ -1406,6 +1430,7 @@ function _touchCfg(){ STATE.cfgUpdatedAt = Date.now(); }
 })();
 
 loadState();
+recalcProva(); // agora com STATE disponível: usa a data configurada
 srLoadCfg(); // re-lê: agora com STATE disponível (config sincronizada vence a local)
 
 // ═══════════════════════════════════════════════════════
@@ -1429,7 +1454,8 @@ function _priorityParts(f){
   const consol  = -Math.min(24,(f.revGood||0)*8);
   const cooling = f.coolPts||0;
   const discTerm= (f.discWeight||0)*50;
-  const proxMult= 1+clamp((1-DIAS_PROVA/540),0,0.5);
+  // Sem data da prova preenchida, não há urgência a inferir: multiplicador neutro
+  const proxMult= (DIAS_PROVA==null) ? 1 : 1+clamp((1-DIAS_PROVA/540),0,0.5);
   const total   = Math.round((incTerm+diffPen)*proxMult + stageW + blockUrg + discTerm + consol + cooling);
   return {incTerm,diffPen,stageW,blockUrg,consol,cooling,discTerm,proxMult,total};
 }
@@ -1688,6 +1714,8 @@ function recomputeScheduler(){
       const weeks = Math.ceil((examMs - todayMs) / (7*24*3600*1000));
       return Math.max(4, Math.min(weeks, 104));
     }
+    // Sem data preenchida não assumimos NENHUMA data: 26 semanas é apenas a
+    // janela de renderização até o usuário informar a dele.
     return 26;
   })();
   for(let w=0;w<WEEKS_N;w++){
@@ -1905,7 +1933,9 @@ function updateSidebar(){
   const late=all.filter(t=>t.revStatus==='late').length;
   const td=all.filter(t=>t.revStatus==='today').length;
   document.getElementById('sb-rbadge').textContent=late+td;
-  document.getElementById('sb-dias').textContent=DIAS_PROVA+' dias restantes';
+  document.getElementById('sb-dias').textContent=(DIAS_PROVA==null)?'defina em Configurações':DIAS_PROVA+' dias restantes';
+  var _pv=document.getElementById('sb-prova');
+  if(_pv) _pv.textContent=PROVA?PROVA.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'}):'—';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2206,7 +2236,9 @@ function renderHoje(){
   const h=TODAY.getHours();
   var _gname=(document.getElementById('sb-user-name')||{}).textContent||'';
   document.getElementById('h-gr').textContent=(h<12?'Bom dia':h<18?'Boa tarde':'Boa noite')+(_gname&&_gname!=='…'?', '+_gname+'.':'.');
-  document.getElementById('h-sub').textContent=`${DIAS_PROVA} dias para a prova · ${Math.ceil(DIAS_PROVA/7)} semanas`;
+  document.getElementById('h-sub').textContent=(DIAS_PROVA==null)
+    ? '⚠ Defina a data da prova em Configurações para o cronograma se ajustar a ela'
+    : `${DIAS_PROVA} dias para a prova · ${Math.ceil(DIAS_PROVA/7)} semanas`;
   const all=computeAll();
   const top=[...all].sort((a,b)=>b.priority-a.priority)[0];
   if(top) document.getElementById('h-next').innerHTML=`${ttHTML(top.n)} (${top.disc}) — ${getActionLabel(top)}`;
@@ -3078,7 +3110,8 @@ function renderRoadCov(){
     if(t.type==='NEW'&&t.topicId) schedNew.add(t.topicId);
   }));
   const info=document.getElementById('perf-road-info');
-  if(info) info.textContent=WEEKS.length+' semanas · '+SP().hrsPerWk+'h/sem · '+DIAS_PROVA+' dias p/ prova';
+  if(info) info.textContent=WEEKS.length+' semanas · '+SP().hrsPerWk+'h/sem'
+    +((DIAS_PROVA==null)?' · data da prova não definida':' · '+DIAS_PROVA+' dias p/ prova');
   el.innerHTML=['CLM','CLC','GO','PED','PREVENTIVA'].map(d=>{
     const its=all.filter(t=>t.disc===d);
     const q3Now=its.filter(t=>t.stage==='Q3_DONE').length;
@@ -4300,9 +4333,10 @@ async function _adoptUser(user){
   // Histórico da planilha → sessões (apenas contas do fundador, 1x)
   await _maybeImportPlanilhaBaseline(user);
 
-  // Configurações sincronizadas (SR / banca) do STATE adotado
+  // Configurações sincronizadas (SR / banca / data da prova) do STATE adotado
   srLoadCfg();
   bancaLoadCfg();
+  recalcProva();
 
   invalidateCache();
   migrateState();
