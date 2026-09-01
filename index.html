@@ -925,9 +925,15 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 // ═══════════════════════════════════════════════════════
 // EXAM DATE CONFIG — Data final do cronograma
 // ═══════════════════════════════════════════════════════
+// Data da prova: vive no STATE (sincroniza na nuvem). localStorage fica como
+// fallback legado — antes era a ÚNICA fonte, então a data não seguia a conta.
+function _examCfgGet(){
+  try{ if(STATE&&STATE.examDate) return {date:STATE.examDate}; }catch(e){}
+  try{ return JSON.parse(localStorage.getItem('qg_exam_date')||'null'); }catch(e){ return null; }
+}
 function examDateLoad(){
   try{
-    const s=JSON.parse(localStorage.getItem('qg_exam_date')||'null');
+    const s=_examCfgGet();
     const el=document.getElementById('cfg-exam-date');
     if(el && s && s.date) el.value=s.date;
     examDatePreview();
@@ -951,11 +957,13 @@ function examDateApply(){
   const weeks=Math.ceil(ms/(7*24*3600*1000));
   if(weeks<=0){ alert('A data selecionada já passou!'); return; }
   try{ localStorage.setItem('qg_exam_date', JSON.stringify({date:el.value})); }catch(e){}
+  STATE.examDate=el.value; _touchCfg(); persistState(); queueCloudSave();
   invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
   _showToast('Data da prova salva! Cronograma recalculado para '+weeks+' semanas.');
 }
 function examDateReset(){
   try{ localStorage.removeItem('qg_exam_date'); }catch(e){}
+  STATE.examDate=null; _touchCfg(); persistState(); queueCloudSave();
   const el=document.getElementById('cfg-exam-date');
   if(el) el.value='';
   examDatePreview();
@@ -1023,6 +1031,7 @@ function discCfgApply(){
     spCfg.focusHard=fhEl.checked?1:0;
     STATE.schedulerParams=spCfg;
   }
+  _touchCfg();
   persistState(); queueCloudSave();
   _spOfferReplanCurrentWeek(true); // aplica à semana atual se o usuário quiser
   invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
@@ -1037,7 +1046,7 @@ function discCfgPreset(type){
     const b=discCfgGetBancas();
     DISC_ORDER.forEach(d=>{ const s=document.getElementById('disc-slider-'+d); if(s) s.value=b[d]||0; });
     try{ localStorage.removeItem('qg_disc_cfg'); }catch(e){}
-    delete STATE.discCfg; persistState(); queueCloudSave();
+    delete STATE.discCfg; _touchCfg(); persistState(); queueCloudSave();
   }
   discCfgUpdateTotal();
 }
@@ -1054,7 +1063,7 @@ function srLoadCfg(){
 }
 function srSaveCfg(){
   try{localStorage.setItem('qg_sr_cfg',JSON.stringify(SR_CFG));}catch(e){}
-  try{ STATE.srCfg={...SR_CFG}; persistState(); queueCloudSave(); }catch(e){}
+  try{ STATE.srCfg={...SR_CFG}; _touchCfg(); persistState(); queueCloudSave(); }catch(e){}
 }
 function srApply(){
   ['gt90','gt80','gt70','gt60','lt60'].forEach(f=>{
@@ -1294,6 +1303,11 @@ function persistState(){
     if(!CURRENT_UID) localStorage.removeItem('qg_v4'); // clean up old key
   }catch(e){}
 }
+
+// Marca o instante da última alteração de CONFIGURAÇÃO. O syncMerge usa esse
+// carimbo para decidir qual lado vence — sem ele, um dispositivo com cache
+// antigo sobrescrevia as configs novas na nuvem ("parâmetros voltavam sozinhos").
+function _touchCfg(){ STATE.cfgUpdatedAt = Date.now(); }
 // ── Planilha version migration ──────────────────────────────────────
 // When planilha.js changes (new version), clear sessions to avoid
 // double-counting progress (new planilha already has progress embedded)
@@ -1585,7 +1599,7 @@ function recomputeScheduler(){
 
   // Exam date config: use saved date or fallback to 26 weeks
   const _examCfg = (function(){
-    try{ return JSON.parse(localStorage.getItem('qg_exam_date')||'null'); }catch(e){ return null; }
+    return _examCfgGet();
   })();
   const _hasExam = !!(_examCfg && _examCfg.date);
   const WEEKS_N = (function(){
@@ -3477,6 +3491,7 @@ function spApply(){
   var wsd=document.getElementById('sp-weekStartDay');
   if(wsd){ var vw=parseInt(wsd.value); if(vw>=0&&vw<=6) sp.weekStartDay=vw; }
   STATE.schedulerParams=sp;
+  _touchCfg();
   _spOfferReplanCurrentWeek(JSON.stringify(sp)!==before);
   persistState();
   queueCloudSave();
@@ -3487,7 +3502,15 @@ function spApply(){
 
 function spReset(){
   var before=JSON.stringify(STATE.schedulerParams||{});
-  STATE.schedulerParams={minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15};
+  // Restaura só os TEMPOS — preserva dia de virada e as opções de otimização
+  // (antes o reset apagava weekStartDay/minNewCount/maxNewPct/rampDown/interleave/
+  //  easeFactor/focusHard, e elas "voltavam ao padrão" sem o usuário pedir).
+  var keep=STATE.schedulerParams||{};
+  STATE.schedulerParams={minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15,
+    weekStartDay:keep.weekStartDay, minNewCount:keep.minNewCount, maxNewPct:keep.maxNewPct,
+    rampDownWeeks:keep.rampDownWeeks, interleave:keep.interleave, easeFactor:keep.easeFactor,
+    focusHard:keep.focusHard};
+  _touchCfg();
   _spOfferReplanCurrentWeek(JSON.stringify(STATE.schedulerParams)!==before);
   persistState();
   queueCloudSave();
@@ -3528,6 +3551,7 @@ function optApply(){
   if(il) sp.interleave = il.checked?1:0;
   if(ef) sp.easeFactor = ef.checked?1:0;
   STATE.schedulerParams=sp;
+  _touchCfg();
   _spOfferReplanCurrentWeek(JSON.stringify(sp)!==before);
   persistState();
   queueCloudSave();
@@ -3539,6 +3563,7 @@ function optReset(){
   var sp=STATE.schedulerParams||{};
   sp.minNewCount=2; sp.maxNewPct=60; sp.rampDownWeeks=4; sp.interleave=1; sp.easeFactor=1;
   STATE.schedulerParams=sp;
+  _touchCfg();
   persistState();
   queueCloudSave();
   optFillForm();
@@ -3698,7 +3723,7 @@ function bancaLoadCfg(){
 }
 function bancaSaveCfg(){
   try{ localStorage.setItem('qg_banca_cfg', JSON.stringify(BANCA_CFG)); }catch(e){}
-  try{ STATE.bancaCfg={...BANCA_CFG}; persistState(); queueCloudSave(); }catch(e){}
+  try{ STATE.bancaCfg={...BANCA_CFG}; _touchCfg(); persistState(); queueCloudSave(); }catch(e){}
 }
 bancaLoadCfg();
 
@@ -3961,20 +3986,30 @@ function syncMerge(local, remote) {
   (remote.simulados||[]).concat(local.simulados||[]).forEach(function(s){ simMap[s.id]=s; });
 
   var weekHistory    = Object.assign({}, remote.weekHistory||{},    local.weekHistory||{});
+
+  // CONFIGURAÇÕES: vence o lado com alteração mais recente (cfgUpdatedAt).
+  // Antes era sempre "local vence", então um dispositivo com cache antigo
+  // reescrevia na nuvem as configs alteradas em outro — e elas "voltavam".
+  var lTs = local.cfgUpdatedAt||0, rTs = remote.cfgUpdatedAt||0;
+  var cfgSrc = (rTs > lTs) ? remote : local;   // lado vencedor
+  var cfgOld = (rTs > lTs) ? local  : remote;  // lado perdedor (só preenche buracos)
   var schedulerParams = Object.assign({minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15},
-    remote.schedulerParams||{}, local.schedulerParams||{});
-  var srCfg    = Object.assign({}, remote.srCfg||{},    local.srCfg||{});
-  var bancaCfg = Object.assign({}, remote.bancaCfg||{}, local.bancaCfg||{});
+    cfgOld.schedulerParams||{}, cfgSrc.schedulerParams||{});
+  var srCfg    = Object.assign({}, cfgOld.srCfg||{},    cfgSrc.srCfg||{});
+  var bancaCfg = Object.assign({}, cfgOld.bancaCfg||{}, cfgSrc.bancaCfg||{});
   return {sessions:sessions, simulados:Object.values(simMap), weekExecution:weekExecution,
     weekPlans:weekPlans, weekHistory:weekHistory, schedulerParams:schedulerParams, heatmap:heatmap,
     srCfg:srCfg, bancaCfg:bancaCfg,
+    cfgUpdatedAt: Math.max(lTs, rTs),
+    examDate: cfgSrc.examDate||cfgOld.examDate||null,
     planilhaBaseline: !!(local.planilhaBaseline||remote.planilhaBaseline),
     onboarded: !!(local.onboarded||remote.onboarded),
-    discCfg: local.discCfg||remote.discCfg,
+    discCfg: cfgSrc.discCfg||cfgOld.discCfg,
     flashcards: (function(){
       var l=local.flashcards||{}, r=remote.flashcards||{};
-      return {enabled:(l.enabled!=null?l.enabled:r.enabled)||0,
-        days:Object.assign({},r.days||{},l.days||{})}; // união por dia, local vence
+      var en=(cfgSrc.flashcards||{}).enabled;          // interruptor segue o lado mais recente
+      return {enabled:(en!=null?en:(l.enabled!=null?l.enabled:r.enabled))||0,
+        days:Object.assign({},r.days||{},l.days||{})}; // registros diários: união, local vence
     })(), v:5};
 }
 

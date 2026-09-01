@@ -414,6 +414,16 @@ Adicionado:
 
 ---
 
+## v4.3
+
+Corrigido (parâmetros que "voltavam sozinhos"):
+
+- **Causa principal — merge de configurações sempre deixava o LOCAL vencer.** Ao abrir o app num dispositivo/navegador com cache antigo, o `syncMerge` adotava as configs velhas desse dispositivo e o `syncSave` seguinte (feito logo após o login) **reescrevia a nuvem com elas** — desfazendo ajustes feitos em outro lugar. Agora cada alteração de configuração carimba `cfgUpdatedAt`, e o merge adota o lado com a alteração **mais recente** (contas sem carimbo mantêm o comportamento anterior)
+- **"Restaurar padrões" dos tempos apagava outras configurações**: `spReset()` reescrevia `schedulerParams` só com os 6 tempos, zerando silenciosamente dia de virada da semana, mínimo/máximo de conteúdo novo, ramp-down, interleaving, fator SM-2 e modo focado. Agora preserva todos esses
+- **Data da prova não seguia a conta**: vivia apenas no `localStorage`, então sumia em outro navegador/dispositivo (voltando ao fallback de 26 semanas e desativando a reta final). Agora vive em `STATE.examDate` e sincroniza na nuvem; `localStorage` permanece como fallback legado
+
+---
+
 ## Próxima Versão
 
 Planejado:
