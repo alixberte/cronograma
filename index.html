@@ -886,7 +886,25 @@ img,canvas,svg{max-width:100%}
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
       <label class="row" style="cursor:pointer;font-size:12px"><input type="checkbox" id="sp-interleave"> <span>Intercalar disciplinas na semana <span style="color:var(--t3)">(interleaving — evita blocos longos de uma só área)</span></span></label>
       <label class="row" style="cursor:pointer;font-size:12px"><input type="checkbox" id="sp-easeFactor"> <span>Fator de facilidade nas revisões <span style="color:var(--t3)">(SM-2 — espaça mais quem acerta consistentemente)</span></span></label>
-      <label class="row" style="cursor:pointer;font-size:12px;align-items:flex-start"><input type="checkbox" id="sp-recencyWeight" style="margin-top:2px"> <span>Acerto ponderado por recência <span style="color:var(--t3)">(sessões recentes pesam mais nas decisões — meia-vida de <strong>120</strong> dias; o acerto médio histórico continua visível)</span></span></label>
+      <label class="row" style="cursor:pointer;font-size:12px;align-items:flex-start"><input type="checkbox" id="sp-recencyWeight" style="margin-top:2px" onchange="recencyPreview()"> <span>Acerto ponderado por recência <span style="color:var(--t3)">(sessões recentes pesam mais nas decisões; o acerto médio histórico continua visível)</span></span></label>
+    </div>
+    <!-- Meia-vida da ponderação por recência -->
+    <div style="background:var(--s2);border-radius:var(--r);padding:10px 12px;margin-bottom:14px" id="sp-recency-box">
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <label style="font-size:11px;font-weight:600;color:var(--t2)">Meia-vida da recência</label>
+        <input type="number" id="sp-recencyHalfLife" min="15" max="720" step="15" style="width:80px" oninput="recencyPreview()">
+        <span style="font-size:11px;color:var(--t3)">dias</span>
+      </div>
+      <div style="font-size:10.5px;color:var(--t2);line-height:1.65">
+        <strong>Como funciona:</strong> cada bloco de questões que você registra pesa menos conforme envelhece.
+        A meia-vida é o tempo que uma sessão leva para valer <strong>metade</strong> de uma feita hoje —
+        depois de duas meias-vidas ela vale 1/4, e assim por diante. O peso nunca chega a zero:
+        o passado continua contando, só que cada vez menos.
+        <div style="margin-top:5px"><strong>Valor menor</strong> = o sistema reage rápido ao seu desempenho atual (bom se você evoluiu muito recentemente).
+        <strong>Valor maior</strong> = o histórico completo pesa mais (mais estável, menos sensível a um dia ruim).</div>
+        <div style="margin-top:5px;opacity:.85">Afeta a prioridade dos temas e o intervalo da 1ª revisão — nunca o seu acerto médio histórico, que segue exibido como está.</div>
+      </div>
+      <div id="sp-recency-preview" style="font-size:10.5px;color:var(--t3);margin-top:7px;padding-top:7px;border-top:1px solid var(--b)"></div>
     </div>
     <div style="display:flex;gap:7px">
       <button class="btn btn-k" id="opt-save-btn" onclick="optApply()">Salvar e recalcular</button>
@@ -1144,7 +1162,7 @@ function discCfgPreset(type){
 // ═══════════════════════════════════════════════════════
 // Meia-vida da ponderação por recência: uma sessão desta idade pesa metade
 // de uma feita hoje no cálculo do acerto usado para decisões.
-const RECENCY_HALFLIFE = 120; // dias
+const RECENCY_HALFLIFE_DEFAULT = 120; // dias (padrão; configurável em Otimização de estudos)
 const SR_DEFAULTS = {gt90:90, gt80:60, gt70:45, gt60:30, lt60:15, default:30};
 let SR_CFG = {...SR_DEFAULTS};
 function srLoadCfg(){
@@ -1510,7 +1528,7 @@ function computeTopic(base){
   if(q>0&&a>0) pct=safe_pct(a,q);
 
   // pct PONDERADO POR RECÊNCIA: mesma base (Q1+Q2+Q3), mas cada sessão pesa
-  // conforme a idade — meia-vida de RECENCY_HALFLIFE dias. Assim um tema
+  // conforme a idade — meia-vida configurável em dias. Assim um tema
   // dominado recentemente deixa de carregar para sempre os erros antigos.
   // pct puro continua existindo como estatística histórica.
   let pctW = pct;
@@ -1518,7 +1536,7 @@ function computeTopic(base){
     let wq=0, wa=0;
     for(const s of qSess){
       const age=Math.max(0, daysDiff(s.data, ISO_TODAY));
-      const w=Math.pow(0.5, age/RECENCY_HALFLIFE);
+      const w=Math.pow(0.5, age/(SP().recencyHalfLife||RECENCY_HALFLIFE_DEFAULT));
       wq+=s.q*w; wa+=s.a*w;
     }
     if(wq>0) pctW=Math.round(wa/wq*100);
@@ -1637,6 +1655,7 @@ function SP(){var p=STATE.schedulerParams||{};return {
   interleave:    p.interleave!=null?p.interleave:1,  // intercalar disciplinas na semana
   easeFactor:    p.easeFactor!=null?p.easeFactor:1,  // fator de facilidade SM-2 nos intervalos
   recencyWeight: p.recencyWeight!=null?p.recencyWeight:1, // acerto ponderado por recência nas decisões
+  recencyHalfLife: p.recencyHalfLife!=null?p.recencyHalfLife:RECENCY_HALFLIFE_DEFAULT, // meia-vida (dias) da ponderação
   focusHard:     p.focusHard!=null?p.focusHard:0     // modo focado total: 0% suprime também revisões/blocos
 };}
 // Início da "semana de estudo" — dia configurável (SP().weekStartDay).
@@ -3697,6 +3716,25 @@ function spFillForm(){
 }
 
 // ── Otimização de estudos (maxNewPct / rampDownWeeks / interleave / easeFactor) ──
+// Mostra, em números concretos, o que a meia-vida escolhida significa.
+function recencyPreview(){
+  var box=document.getElementById('sp-recency-box');
+  var out=document.getElementById('sp-recency-preview');
+  var on=(document.getElementById('sp-recencyWeight')||{}).checked;
+  if(box) box.style.opacity = on ? '1' : '.5';
+  if(!out) return;
+  if(!on){ out.textContent='Ponderação desativada — todas as sessões pesam igual, independentemente da idade.'; return; }
+  var el=document.getElementById('sp-recencyHalfLife');
+  var hl=parseInt(el&&el.value)||RECENCY_HALFLIFE_DEFAULT;
+  var marcos=[30,90,180,365];
+  out.innerHTML='<strong>Com '+hl+' dias:</strong> uma sessão de '
+    +marcos.map(function(d){
+        var w=Math.pow(0.5,d/hl);
+        return d+' dias atrás pesa <strong>'+Math.round(w*100)+'%</strong>';
+      }).join(' · ')
+    +' de uma feita hoje.';
+}
+
 function optFillForm(){
   var sp=SP();
   var mc=document.getElementById('sp-minNewCount');   if(mc) mc.value=sp.minNewCount;
@@ -3705,6 +3743,8 @@ function optFillForm(){
   var il=document.getElementById('sp-interleave');    if(il) il.checked=!!sp.interleave;
   var ef=document.getElementById('sp-easeFactor');    if(ef) ef.checked=!!sp.easeFactor;
   var rw=document.getElementById('sp-recencyWeight'); if(rw) rw.checked=!!sp.recencyWeight;
+  var hl=document.getElementById('sp-recencyHalfLife'); if(hl) hl.value=sp.recencyHalfLife;
+  recencyPreview();
 }
 function optApply(){
   var sp=STATE.schedulerParams||{};
@@ -3721,6 +3761,8 @@ function optApply(){
   if(ef) sp.easeFactor = ef.checked?1:0;
   var rw=document.getElementById('sp-recencyWeight');
   if(rw) sp.recencyWeight = rw.checked?1:0;
+  var hl=document.getElementById('sp-recencyHalfLife');
+  if(hl){ var vhl=parseInt(hl.value); if(vhl>=15&&vhl<=720) sp.recencyHalfLife=vhl; }
   STATE.schedulerParams=sp;
   _touchCfg();
   _spOfferReplanCurrentWeek(JSON.stringify(sp)!==before);
@@ -3732,7 +3774,7 @@ function optApply(){
 }
 function optReset(){
   var sp=STATE.schedulerParams||{};
-  sp.minNewCount=2; sp.maxNewPct=60; sp.rampDownWeeks=4; sp.interleave=1; sp.easeFactor=1; sp.recencyWeight=1;
+  sp.minNewCount=2; sp.maxNewPct=60; sp.rampDownWeeks=4; sp.interleave=1; sp.easeFactor=1; sp.recencyWeight=1; sp.recencyHalfLife=RECENCY_HALFLIFE_DEFAULT;
   STATE.schedulerParams=sp;
   _touchCfg();
   persistState();
