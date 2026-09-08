@@ -481,6 +481,16 @@ Corrigido:
 
 ---
 
+## v4.7
+
+Adicionado:
+
+- **Histórico de revisões no modal do tópico**: linha do tempo com o acerto de cada revisão ("92% › 60% › 93%"), colorida por faixa, com a data no tooltip e a variação entre a primeira e a última ("▲ +1 pts"). Torna visível se o tema está consolidando ou oscilando
+- **Cálculo do intervalo auditável**: a caixa da próxima revisão mostra a conta completa — base (acerto da última revisão ou de Q1+Q2+Q3) → faixa em dias × fator de facilidade = intervalo final
+- **Acerto ponderado por recência** (`recencyWeight`, ativado por padrão): as sessões de questões pesam conforme a idade, com meia-vida de 120 dias. O acerto usado nas **decisões** (penalidade de lacuna na prioridade e intervalo da 1ª revisão) passa a refletir o desempenho atual; a média histórica simples continua exibida como estatística. Quando os dois divergem, o modal mostra ambos e identifica qual governa as decisões. Desativável em Configurações → Otimização de estudos
+
+---
+
 ## Próxima Versão
 
 Planejado:

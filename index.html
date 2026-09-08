@@ -886,6 +886,7 @@ img,canvas,svg{max-width:100%}
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
       <label class="row" style="cursor:pointer;font-size:12px"><input type="checkbox" id="sp-interleave"> <span>Intercalar disciplinas na semana <span style="color:var(--t3)">(interleaving — evita blocos longos de uma só área)</span></span></label>
       <label class="row" style="cursor:pointer;font-size:12px"><input type="checkbox" id="sp-easeFactor"> <span>Fator de facilidade nas revisões <span style="color:var(--t3)">(SM-2 — espaça mais quem acerta consistentemente)</span></span></label>
+      <label class="row" style="cursor:pointer;font-size:12px;align-items:flex-start"><input type="checkbox" id="sp-recencyWeight" style="margin-top:2px"> <span>Acerto ponderado por recência <span style="color:var(--t3)">(sessões recentes pesam mais nas decisões — meia-vida de <strong>120</strong> dias; o acerto médio histórico continua visível)</span></span></label>
     </div>
     <div style="display:flex;gap:7px">
       <button class="btn btn-k" id="opt-save-btn" onclick="optApply()">Salvar e recalcular</button>
@@ -1141,6 +1142,9 @@ function discCfgPreset(type){
 
 // SR CONFIG — Configurable spaced repetition intervals
 // ═══════════════════════════════════════════════════════
+// Meia-vida da ponderação por recência: uma sessão desta idade pesa metade
+// de uma feita hoje no cálculo do acerto usado para decisões.
+const RECENCY_HALFLIFE = 120; // dias
 const SR_DEFAULTS = {gt90:90, gt80:60, gt70:45, gt60:30, lt60:15, default:30};
 let SR_CFG = {...SR_DEFAULTS};
 function srLoadCfg(){
@@ -1475,7 +1479,8 @@ function computeTopic(base){
   let q=0, a=0, pct=null;
 
   let latestRevPct=null, latestRevDate=null;
-  const revHistory=[]; // acertos (%) de cada revisão espaçada, em ordem — base do fator de facilidade
+  const revHistory=[]; // {pct,data} de cada revisão espaçada, em ordem — base do fator de facilidade e da timeline
+  const qSess=[];      // sessões com questões (Q1/Q2/Q3) — base do acerto ponderado por recência
 
   for(const s of userSess){
     const sq=s.q||0, sa=s.a||0;
@@ -1484,46 +1489,65 @@ function computeTopic(base){
     if(s.tipo==='Q1_DONE'){
       if(!r1) r1=s.data;
       if(STAGE_ORDER[stage]<2) stage='Q1_DONE';
-      if(sq>0){q+=sq; a+=sa;}
+      if(sq>0){q+=sq; a+=sa; qSess.push({q:sq,a:sa,data:s.data});}
     }
     if(s.tipo==='Q2_DONE'){
       if(!r2) r2=s.data;
       if(STAGE_ORDER[stage]<3) stage='Q2_DONE';
-      if(sq>0){q+=sq; a+=sa;}
+      if(sq>0){q+=sq; a+=sa; qSess.push({q:sq,a:sa,data:s.data});}
     }
     if(s.tipo==='Q3_DONE'){
       if(!r3) r3=s.data;
       stage='Q3_DONE';
-      if(sq>0){q+=sq; a+=sa;}
+      if(sq>0){q+=sq; a+=sa; qSess.push({q:sq,a:sa,data:s.data});}
     }
     if(['SPACED_REV','THEORY_REV','QUICK_REV','ERROR_REV','FINAL_REV'].includes(s.tipo)){
-      if(sq>0){latestRevPct=safe_pct(sa,sq); latestRevDate=s.data; revHistory.push(latestRevPct);}
+      if(sq>0){latestRevPct=safe_pct(sa,sq); latestRevDate=s.data; revHistory.push({pct:latestRevPct,data:s.data});}
     }
   }
 
   // pct de DOMÍNIO = acerto acumulado de Q1+Q2+Q3 (nunca sobrescrito por revisão).
   if(q>0&&a>0) pct=safe_pct(a,q);
 
-  // pct da REVISÃO: primeira revisão usa o acumulado Q1+Q2+Q3; a partir daí,
-  // cada intervalo é recalculado pelo acerto SOMENTE da última revisão feita.
-  const revPct = latestRevPct!==null ? latestRevPct : pct;
+  // pct PONDERADO POR RECÊNCIA: mesma base (Q1+Q2+Q3), mas cada sessão pesa
+  // conforme a idade — meia-vida de RECENCY_HALFLIFE dias. Assim um tema
+  // dominado recentemente deixa de carregar para sempre os erros antigos.
+  // pct puro continua existindo como estatística histórica.
+  let pctW = pct;
+  if(SP().recencyWeight && qSess.length>1){
+    let wq=0, wa=0;
+    for(const s of qSess){
+      const age=Math.max(0, daysDiff(s.data, ISO_TODAY));
+      const w=Math.pow(0.5, age/RECENCY_HALFLIFE);
+      wq+=s.q*w; wa+=s.a*w;
+    }
+    if(wq>0) pctW=Math.round(wa/wq*100);
+  }
+
+  // pct da REVISÃO: primeira revisão usa o acerto de Q1+Q2+Q3 (ponderado, se
+  // ativo); a partir daí, cada intervalo vem do acerto SOMENTE da última revisão.
+  const revPct = latestRevPct!==null ? latestRevPct : pctW;
 
   // SPACED REPETITION (SM-2 simplified). Only after Q3_DONE.
   let nextRev=null, revInterval=null, revStatus='none', extStage=stage;
-  let coolPts=0; // esfriamento: pontos de prioridade por tempo sem contato (0–20)
+  let coolPts=0;          // esfriamento: pontos de prioridade por tempo sem contato (0–20)
+  let baseInterval=null;  // intervalo da faixa, ANTES do fator de facilidade (para auditoria)
+  let easeApplied=null;   // multiplicador de facilidade aplicado (null = não aplicado)
   if(stage==='Q3_DONE'){
     const p=revPct!==null?revPct:70;
     // Intervalo base = faixa de acerto da última revisão (comportamento pedido pelo usuário)
     let bandInterval = p>90?SR_CFG.gt90 : p>80?SR_CFG.gt80 : p>70?SR_CFG.gt70 : p>60?SR_CFG.gt60 : SR_CFG.lt60;
     // Fator de facilidade (SM-2): modula o intervalo pela consistência do histórico de revisões.
     // Histórico consistentemente bom → espaça mais; oscilante/ruim → encurta. Base continua a última revisão.
+    baseInterval = bandInterval;
     if(SP().easeFactor && revHistory.length){
       let ef=1.0;
-      for(const rp of revHistory){
-        const qual=rp/20; // 0–5
+      for(const rh of revHistory){
+        const qual=rh.pct/20; // 0–5
         ef += (0.1 - (5-qual)*(0.08+(5-qual)*0.02));
         ef = Math.max(0.7, Math.min(1.6, ef));
       }
+      easeApplied = Math.round(ef*100)/100;
       bandInterval = Math.round(bandInterval*ef);
     }
     revInterval = bandInterval;
@@ -1558,11 +1582,11 @@ function computeTopic(base){
   const discTotal=dw?dw.total:100;
   const discWeight=discTotal/1856;
   // Consolidação: nº de revisões espaçadas concluídas com ≥80% de acerto
-  const revGood=revHistory.filter(p=>p>=80).length;
-  const priority=_priorityScore({inc,pct,stage,pendingBlocks,discWeight,revGood,coolPts});
+  const revGood=revHistory.filter(rh=>rh.pct>=80).length;
+  const priority=_priorityScore({inc,pct:pctW,stage,pendingBlocks,discWeight,revGood,coolPts});
 
-  return {...base,r1,r2,r3,q,a,pct,stage,extStage,nextRev,revInterval,revStatus,pendingBlocks,priority,inc,discWeight,revGood,coolPts,
-    revPct, revCount:revHistory.length, lastRevDate:latestRevDate};
+  return {...base,r1,r2,r3,q,a,pct,pctW,stage,extStage,nextRev,revInterval,revStatus,pendingBlocks,priority,inc,discWeight,revGood,coolPts,
+    revPct, revCount:revHistory.length, lastRevDate:latestRevDate, revHistory, baseInterval, easeApplied};
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1612,6 +1636,7 @@ function SP(){var p=STATE.schedulerParams||{};return {
   rampDownWeeks: p.rampDownWeeks!=null?p.rampDownWeeks:4, // semanas finais sem novo conteúdo
   interleave:    p.interleave!=null?p.interleave:1,  // intercalar disciplinas na semana
   easeFactor:    p.easeFactor!=null?p.easeFactor:1,  // fator de facilidade SM-2 nos intervalos
+  recencyWeight: p.recencyWeight!=null?p.recencyWeight:1, // acerto ponderado por recência nas decisões
   focusHard:     p.focusHard!=null?p.focusHard:0     // modo focado total: 0% suprime também revisões/blocos
 };}
 // Início da "semana de estudo" — dia configurável (SP().weekStartDay).
@@ -2204,7 +2229,14 @@ function openTopicModal(t){
       <div style="font-size:10px;color:var(--t3);margin-bottom:2px">Acerto médio <span style="opacity:.7">(Q1+Q2+Q3)</span></div>
       <div style="font-size:23px;font-weight:300;color:${acColor(t.pct)}">${t.pct}%</div>
       <div style="font-size:10px;color:var(--t3)">${t.q} questões acumuladas</div>
-      ${t.revCount?`<div style="font-size:10px;color:var(--t3);margin-top:4px">Última revisão: <strong style="color:${acColor(t.revPct)}">${t.revPct}%</strong>${t.lastRevDate?" · "+fmtD(t.lastRevDate):""} · ${t.revCount} revisão(ões) feita(s)</div>`:''}</div>`:''}
+      ${(t.pctW!=null&&t.pctW!==t.pct)?`<div style="font-size:10px;color:var(--t3);margin-top:3px">Ponderado por recência: <strong style="color:${acColor(t.pctW)}">${t.pctW}%</strong> <span style="opacity:.7">— é este que o sistema usa nas decisões</span></div>`:''}
+      ${t.revCount?`<div style="font-size:10px;color:var(--t3);margin-top:4px">Última revisão: <strong style="color:${acColor(t.revPct)}">${t.revPct}%</strong>${t.lastRevDate?" · "+fmtD(t.lastRevDate):""} · ${t.revCount} revisão(ões) feita(s)</div>`:''}
+      ${t.revCount?`<div style="margin-top:6px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <span style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;width:100%;margin-bottom:1px">Histórico de revisões</span>
+        ${t.revHistory.map((rh,i)=>`${i?'<span style="font-size:9px;color:var(--t3)">›</span>':''}<span title="${fmtD(rh.data)}" style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:10px;background:${acColor(rh.pct)}1a;color:${acColor(rh.pct)}">${rh.pct}%</span>`).join('')}
+        ${(function(){var h=t.revHistory;if(h.length<2)return '';var d=h[h.length-1].pct-h[0].pct;
+          return '<span style="font-size:9px;color:var(--t3);margin-left:2px">'+(d>0?'▲ +'+d+' pts':d<0?'▼ '+d+' pts':'estável')+'</span>';})()}
+      </div>`:''}</div>`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px">
       ${[['Q1 (r1)',t.r1],['Q2 (r2)',t.r2],['Q3 (r3)',t.r3]].map(([l,v])=>`
       <div style="background:var(--s2);border-radius:var(--r);padding:7px 9px">
@@ -2217,7 +2249,10 @@ function openTopicModal(t){
     </div>`:''}
     ${t.nextRev?`<div class="alert ${t.revStatus==='late'?'a-red':t.revStatus==='today'?'a-amb':'a-blu'} mb8">
       <strong>Próxima revisão espaçada:</strong> ${fmtD(t.nextRev)} · ${t.revInterval}d
-      <div style="font-size:10px;opacity:.85;margin-top:3px">Intervalo calculado sobre ${t.revCount?`o acerto da última revisão (<strong>${t.revPct}%</strong>)`:`a média de Q1+Q2+Q3 (<strong>${t.revPct}%</strong>)`}${SP().easeFactor&&t.revCount?' · ajustado pelo fator de facilidade':''}</div>
+      <div style="font-size:10px;opacity:.85;margin-top:3px">Base: ${t.revCount?`acerto da última revisão (<strong>${t.revPct}%</strong>)`:`acerto de Q1+Q2+Q3 (<strong>${t.revPct}%</strong>)`}
+      ${(t.easeApplied!=null&&t.baseInterval!=null)
+        ? `→ faixa <strong>${t.baseInterval}d</strong> × fator de facilidade <strong>${t.easeApplied.toFixed(2)}</strong> = <strong>${t.revInterval}d</strong>`
+        : `→ faixa <strong>${t.revInterval}d</strong>`}</div>
     </div>`:''}
     ${t.obs?'<div style="margin-bottom:10px;padding:8px 10px;background:var(--s2);border-radius:var(--r1);border-left:3px solid var(--teal)"><div style="font-size:10px;color:var(--t3);margin-bottom:3px">📝 Observação</div><div style="font-size:12px;color:var(--t1)">'+ (t.obs||"") +'</div></div>':''}
     <div style="font-size:10px;color:var(--t3);margin-bottom:2px">Próxima ação</div>
@@ -3669,6 +3704,7 @@ function optFillForm(){
   var rd=document.getElementById('sp-rampDownWeeks'); if(rd) rd.value=sp.rampDownWeeks;
   var il=document.getElementById('sp-interleave');    if(il) il.checked=!!sp.interleave;
   var ef=document.getElementById('sp-easeFactor');    if(ef) ef.checked=!!sp.easeFactor;
+  var rw=document.getElementById('sp-recencyWeight'); if(rw) rw.checked=!!sp.recencyWeight;
 }
 function optApply(){
   var sp=STATE.schedulerParams||{};
@@ -3683,6 +3719,8 @@ function optApply(){
   if(rd){ var vrd=parseInt(rd.value); if(vrd>=0&&vrd<=12)   sp.rampDownWeeks=vrd; }
   if(il) sp.interleave = il.checked?1:0;
   if(ef) sp.easeFactor = ef.checked?1:0;
+  var rw=document.getElementById('sp-recencyWeight');
+  if(rw) sp.recencyWeight = rw.checked?1:0;
   STATE.schedulerParams=sp;
   _touchCfg();
   _spOfferReplanCurrentWeek(JSON.stringify(sp)!==before);
@@ -3694,7 +3732,7 @@ function optApply(){
 }
 function optReset(){
   var sp=STATE.schedulerParams||{};
-  sp.minNewCount=2; sp.maxNewPct=60; sp.rampDownWeeks=4; sp.interleave=1; sp.easeFactor=1;
+  sp.minNewCount=2; sp.maxNewPct=60; sp.rampDownWeeks=4; sp.interleave=1; sp.easeFactor=1; sp.recencyWeight=1;
   STATE.schedulerParams=sp;
   _touchCfg();
   persistState();
