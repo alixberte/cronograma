@@ -471,6 +471,35 @@ Alterado:
 
 ---
 
+## v4.6
+
+Corrigido:
+
+- **"Último acerto" era, na verdade, a média acumulada** de todas as questões de Q1+Q2+Q3 — rótulo trocado para **"Acerto médio (Q1+Q2+Q3)"**, com "N questões acumuladas". Quando há revisões feitas, o modal passa a mostrar também o acerto e a data da **última revisão** e quantas revisões já ocorreram
+- **O percentual exibido junto ao intervalo de revisão não era o que gerou o intervalo**: `computeTopic()` calculava o intervalo a partir de `revPct` (acerto da última revisão) mas não devolvia esse valor, então a interface exibia `pct` (a média acumulada). Agora `revPct`, `revCount` e `lastRevDate` são expostos e usados no modal e nas etiquetas do scheduler ("Rev. atrasada", "SM-2: próx…")
+- **Legenda das faixas de revisão estava errada e fixa**: a página Revisões anunciava "≥85% → +45d · 70–84% → +30d · 60–69% → +14d · <60% → +7d", faixas que não existem no sistema (os padrões são 90/60/45/30/15 dias) e que ignoravam a configuração do usuário. Agora a legenda é gerada a partir de `SR_CFG` e explica a regra: 1ª revisão pela média de Q1+Q2+Q3, seguintes pelo acerto da última revisão
+
+---
+
+## v4.7
+
+Adicionado:
+
+- **Histórico de revisões no modal do tópico**: linha do tempo com o acerto de cada revisão ("92% › 60% › 93%"), colorida por faixa, com a data no tooltip e a variação entre a primeira e a última ("▲ +1 pts"). Torna visível se o tema está consolidando ou oscilando
+- **Cálculo do intervalo auditável**: a caixa da próxima revisão mostra a conta completa — base (acerto da última revisão ou de Q1+Q2+Q3) → faixa em dias × fator de facilidade = intervalo final
+- **Acerto ponderado por recência** (`recencyWeight`, ativado por padrão): as sessões de questões pesam conforme a idade, com **meia-vida configurável** (padrão 120 dias, ajustável de 15 a 720 em Configurações → Otimização de estudos). O acerto usado nas **decisões** (penalidade de lacuna na prioridade e intervalo da 1ª revisão) passa a refletir o desempenho atual; a média histórica simples continua exibida como estatística. Quando os dois divergem, o modal mostra ambos e identifica qual governa as decisões. Desativável em Configurações → Otimização de estudos
+
+---
+
+## v4.8
+
+Adicionado:
+
+- **Meia-vida da recência exposta em Configurações** (Otimização de estudos), de 15 a 720 dias, com explicação de como funciona: cada bloco de questões pesa menos conforme envelhece, e a meia-vida é o tempo que uma sessão leva para valer metade de uma feita hoje — valor menor faz o sistema reagir rápido ao desempenho atual, maior dá mais peso ao histórico completo
+- **Previsualizador ao vivo**: traduz o valor escolhido em pesos concretos ("com 120 dias: uma sessão de 30 dias atrás pesa 84% · 90 dias 59% · 180 dias 35% · 365 dias 12% de uma feita hoje"), atualizando enquanto se digita; o bloco esmaece e explica o efeito quando a ponderação está desativada
+
+---
+
 ## Próxima Versão
 
 Planejado:
