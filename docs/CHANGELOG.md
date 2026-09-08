@@ -471,6 +471,16 @@ Alterado:
 
 ---
 
+## v4.6
+
+Corrigido:
+
+- **"Último acerto" era, na verdade, a média acumulada** de todas as questões de Q1+Q2+Q3 — rótulo trocado para **"Acerto médio (Q1+Q2+Q3)"**, com "N questões acumuladas". Quando há revisões feitas, o modal passa a mostrar também o acerto e a data da **última revisão** e quantas revisões já ocorreram
+- **O percentual exibido junto ao intervalo de revisão não era o que gerou o intervalo**: `computeTopic()` calculava o intervalo a partir de `revPct` (acerto da última revisão) mas não devolvia esse valor, então a interface exibia `pct` (a média acumulada). Agora `revPct`, `revCount` e `lastRevDate` são expostos e usados no modal e nas etiquetas do scheduler ("Rev. atrasada", "SM-2: próx…")
+- **Legenda das faixas de revisão estava errada e fixa**: a página Revisões anunciava "≥85% → +45d · 70–84% → +30d · 60–69% → +14d · <60% → +7d", faixas que não existem no sistema (os padrões são 90/60/45/30/15 dias) e que ignoravam a configuração do usuário. Agora a legenda é gerada a partir de `SR_CFG` e explica a regra: 1ª revisão pela média de Q1+Q2+Q3, seguintes pelo acerto da última revisão
+
+---
+
 ## Próxima Versão
 
 Planejado:

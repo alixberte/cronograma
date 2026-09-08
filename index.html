@@ -628,7 +628,7 @@ img,canvas,svg{max-width:100%}
 <!-- REVISÕES -->
 <div class="page" id="page-revisoes">
   <div class="g4 mb14" id="rev-metrics"></div>
-  <div class="alert a-blu mb10"><strong>SM-2 adaptado:</strong> Acerto ≥85% → +45d · 70–84% → +30d · 60–69% → +14d · &lt;60% → +7d · Datas reais da planilha sempre prevalecem.</div>
+  <div class="alert a-blu mb10" id="rev-sr-legend"></div>
   <div class="card">
     <div class="ch"><div class="ctt">Revisões espaçadas</div>
       <select id="rev-f" onchange="renderRevisoes()" style="font-size:11px;width:150px">
@@ -1561,7 +1561,8 @@ function computeTopic(base){
   const revGood=revHistory.filter(p=>p>=80).length;
   const priority=_priorityScore({inc,pct,stage,pendingBlocks,discWeight,revGood,coolPts});
 
-  return {...base,r1,r2,r3,q,a,pct,stage,extStage,nextRev,revInterval,revStatus,pendingBlocks,priority,inc,discWeight,revGood,coolPts};
+  return {...base,r1,r2,r3,q,a,pct,stage,extStage,nextRev,revInterval,revStatus,pendingBlocks,priority,inc,discWeight,revGood,coolPts,
+    revPct, revCount:revHistory.length, lastRevDate:latestRevDate};
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1749,8 +1750,8 @@ function recomputeScheduler(){
     while(overdueRevs.length&&min+_mRev<=revCap){
       const t=overdueRevs.shift();
       tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
-        label:`🔴 Rev. atrasada: ${t.n} (${t.disc}) — acerto ${t.pct!==null?t.pct+'%':'—'}`,
-        explain:`Revisão espaçada vencida · acerto ${t.pct!==null?t.pct+'%':'—'} · SM-2 intervalo ${t.revInterval}d · prioridade ${t.priority}`});
+        label:`🔴 Rev. atrasada: ${t.n} (${t.disc}) — acerto ${t.revPct!==null&&t.revPct!==undefined?t.revPct+'%':'—'}`,
+        explain:`Revisão espaçada vencida · acerto ${t.revCount?'da última revisão':'médio Q1–Q3'} ${t.revPct!==null&&t.revPct!==undefined?t.revPct+'%':'—'} · SM-2 intervalo ${t.revInterval}d · prioridade ${t.priority}`});
       min+=_mRev;
     }
 
@@ -1775,7 +1776,7 @@ function recomputeScheduler(){
       if(t.nextRev&&t.nextRev>=wkISO&&t.nextRev<=wkEndISO){
         tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
           label:`Rev. espaçada: ${t.n} — ${fmtD(t.nextRev)}`,
-          explain:`SM-2: próx. ${fmtD(t.nextRev)} · intervalo ${t.revInterval}d · acerto ${t.pct!==null?t.pct+'%':'—'}`});
+          explain:`SM-2: próx. ${fmtD(t.nextRev)} · intervalo ${t.revInterval}d · acerto ${t.revCount?'da última revisão':'médio Q1–Q3'} ${t.revPct!==null&&t.revPct!==undefined?t.revPct+'%':'—'}`});
         min+=_mRev;
         upcomingRevs.splice(i,1);
       } else { i++; }
@@ -1833,7 +1834,7 @@ function recomputeScheduler(){
     while(overdueRevs.length&&min+_mRev<=CAP){
       const t=overdueRevs.shift();
       tasks.push({type:'SPACED_REV',topicId:t.id,disc:t.disc,n:t.n,pct:t.pct,min:_mRev,
-        label:`🔴 Rev. atrasada: ${t.n} (${t.disc}) — acerto ${t.pct!==null?t.pct+'%':'—'}`,
+        label:`🔴 Rev. atrasada: ${t.n} (${t.disc}) — acerto ${t.revPct!==null&&t.revPct!==undefined?t.revPct+'%':'—'}`,
         explain:`Revisão espaçada vencida · SM-2 ${t.revInterval}d · prioridade ${t.priority}`});
       min+=_mRev;
     }
@@ -2200,9 +2201,10 @@ function openTopicModal(t){
       </div>`).join('')}
     </div>
     ${t.pct!==null?`<div style="margin-bottom:9px">
-      <div style="font-size:10px;color:var(--t3);margin-bottom:2px">Último acerto</div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:2px">Acerto médio <span style="opacity:.7">(Q1+Q2+Q3)</span></div>
       <div style="font-size:23px;font-weight:300;color:${acColor(t.pct)}">${t.pct}%</div>
-      <div style="font-size:10px;color:var(--t3)">${t.q} questões</div></div>`:''}
+      <div style="font-size:10px;color:var(--t3)">${t.q} questões acumuladas</div>
+      ${t.revCount?`<div style="font-size:10px;color:var(--t3);margin-top:4px">Última revisão: <strong style="color:${acColor(t.revPct)}">${t.revPct}%</strong>${t.lastRevDate?" · "+fmtD(t.lastRevDate):""} · ${t.revCount} revisão(ões) feita(s)</div>`:''}</div>`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px">
       ${[['Q1 (r1)',t.r1],['Q2 (r2)',t.r2],['Q3 (r3)',t.r3]].map(([l,v])=>`
       <div style="background:var(--s2);border-radius:var(--r);padding:7px 9px">
@@ -2214,7 +2216,8 @@ function openTopicModal(t){
       <strong>Bloco pendente:</strong> ${t.pendingBlocks.map(b=>`${b.block} — vence ${fmtD(b.due)}${b.overdue?' (ATRASADO)':''}`).join(', ')}
     </div>`:''}
     ${t.nextRev?`<div class="alert ${t.revStatus==='late'?'a-red':t.revStatus==='today'?'a-amb':'a-blu'} mb8">
-      <strong>Próxima revisão espaçada:</strong> ${fmtD(t.nextRev)} · ${t.revInterval}d (SM-2: ${t.pct}%)
+      <strong>Próxima revisão espaçada:</strong> ${fmtD(t.nextRev)} · ${t.revInterval}d
+      <div style="font-size:10px;opacity:.85;margin-top:3px">Intervalo calculado sobre ${t.revCount?`o acerto da última revisão (<strong>${t.revPct}%</strong>)`:`a média de Q1+Q2+Q3 (<strong>${t.revPct}%</strong>)`}${SP().easeFactor&&t.revCount?' · ajustado pelo fator de facilidade':''}</div>
     </div>`:''}
     ${t.obs?'<div style="margin-bottom:10px;padding:8px 10px;background:var(--s2);border-radius:var(--r1);border-left:3px solid var(--teal)"><div style="font-size:10px;color:var(--t3);margin-bottom:3px">📝 Observação</div><div style="font-size:12px;color:var(--t1)">'+ (t.obs||"") +'</div></div>':''}
     <div style="font-size:10px;color:var(--t3);margin-bottom:2px">Próxima ação</div>
@@ -2899,6 +2902,13 @@ function renderFila(){
 // LAYER 13 — REVISÕES
 // ═══════════════════════════════════════════════════════
 function renderRevisoes(){
+  // Legenda das faixas: lida de SR_CFG (configuração do usuário), nunca fixa
+  var _lg=document.getElementById('rev-sr-legend');
+  if(_lg) _lg.innerHTML='<strong>Revisão espaçada (SM-2):</strong> acerto &gt;90% → '+SR_CFG.gt90+'d · '
+    +'&gt;80% → '+SR_CFG.gt80+'d · &gt;70% → '+SR_CFG.gt70+'d · &gt;60% → '+SR_CFG.gt60+'d · '
+    +'&lt;60% → '+SR_CFG.lt60+'d. <span style="opacity:.85">A 1ª revisão usa a média de Q1+Q2+Q3; '
+    +'as seguintes usam o acerto da última revisão'+(SP().easeFactor?', ajustado pelo fator de facilidade':'')+'.</span>';
+
   const all=computeAll();
   const filt=document.getElementById('rev-f').value;
   const late=all.filter(t=>t.revStatus==='late').length;
