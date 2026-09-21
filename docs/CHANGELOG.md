@@ -500,6 +500,19 @@ Adicionado:
 
 ---
 
+## v4.9
+
+Corrigido:
+
+- **"Usar incidência das bancas" ignorava os pesos de banca configurados.** O botão (e o cálculo padrão da proporção por área) usava o campo `total` da planilha — a soma crua de AMRIGS + AMP — então 100% AMRIGS e 100% AMP produziam exatamente a mesma proporção. Agora a incidência de cada área é ponderada por `BANCA_CFG` (novo helper `_discIncPonderada()`), usado tanto pelo botão quanto pelo `getDiscWeights()` padrão
+- Os percentuais são ajustados para fechar exatamente em 100% após o arredondamento
+- Aplicar novos pesos de banca re-renderiza os sliders de proporção por área, que passam a refletir a incidência ponderada na hora
+- Texto do card e tooltip do botão explicitam a dependência dos pesos
+
+Exemplo do impacto (dados reais da planilha): com 100% AMRIGS a Preventiva cai de 25% para 19% e GO sobe de 16% para 19%; com 100% AMP a Preventiva sobe para 30% e GO cai para 13%.
+
+---
+
 ## Próxima Versão
 
 Planejado:

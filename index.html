@@ -934,7 +934,8 @@ img,canvas,svg{max-width:100%}
     <div class="ch"><div class="ctt">📊 Proporção de estudo por grande área</div><span class="chip cdk" id="cfg-disc-total">100%</span></div>
     <div class="alert a-blu mb12" style="font-size:11px">
       Controla quanto de cada grande área será incluído por semana no cronograma. <strong>Total deve somar 100%.</strong>
-      Se usar o botão de reset, volta à proporção calculada automaticamente pela incidência nas bancas.
+      O botão <strong>“Usar incidência das bancas”</strong> calcula a proporção pela frequência real de cada área nas provas,
+      <strong>já ponderada pelos pesos que você definiu acima</strong> — com 100% AMRIGS ele usa só as provas AMRIGS, e assim por diante.
     </div>
     <div id="cfg-disc-sliders" style="display:grid;gap:10px;margin-bottom:12px"></div>
     <label class="row" style="cursor:pointer;font-size:12px;margin-bottom:12px;align-items:flex-start">
@@ -944,7 +945,7 @@ img,canvas,svg{max-width:100%}
     </label>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-k" onclick="discCfgApply()">✅ Salvar e aplicar</button>
-      <button class="btn" onclick="discCfgPreset('bancas')">Usar incidência das bancas</button>
+      <button class="btn" onclick="discCfgPreset('bancas')" title="Proporção derivada da frequência de cada área nas provas, ponderada pelos pesos de banca configurados">Usar incidência das bancas</button>
       <button class="btn" onclick="discCfgPreset('equal')">Igualitário (20% cada)</button>
     </div>
   </div>
@@ -1083,10 +1084,25 @@ function examDateReset(){
 // ═══════════════════════════════════════════════════════
 const DISC_ORDER=['CLM','CLC','GO','PED','PREVENTIVA'];
 const DISC_LABELS={CLM:'Clínica Médica (CLM)',CLC:'Cirurgia (CLC)',GO:'Gineco-Obstetrícia (GO)',PED:'Pediatria (PED)',PREVENTIVA:'Preventiva / Saúde Pública'};
+// Incidência de uma disciplina PONDERADA pelos pesos de banca configurados.
+// Sem isso, 100% AMRIGS e 100% AMP davam a mesma proporção por área — o
+// campo .total da planilha é a soma crua das duas bancas.
+function _discIncPonderada(d){
+  const v=DISC_WEIGHTS.by_disc[d];
+  if(!v) return 0;
+  if(typeof BANCA_CFG==='undefined') return v.total||0; // antes do módulo de bancas carregar
+  return (v.amrigs||0)*BANCA_CFG.amrigs + (v.amp||0)*BANCA_CFG.amp;
+}
 function discCfgGetBancas(){
-  const total=Object.values(DISC_WEIGHTS.by_disc).reduce((t,v)=>t+(v.total||0),0)||1;
+  const total=DISC_ORDER.reduce((t,d)=>t+_discIncPonderada(d),0)||1;
   const w={};
-  DISC_ORDER.forEach(d=>{ const v=DISC_WEIGHTS.by_disc[d]; w[d]=v?Math.round((v.total||0)/total*100):0; });
+  DISC_ORDER.forEach(d=>{ w[d]=Math.round(_discIncPonderada(d)/total*100); });
+  // Ajusta o arredondamento para fechar exatamente em 100%
+  const soma=DISC_ORDER.reduce((t,d)=>t+w[d],0);
+  if(soma!==100){
+    const maior=DISC_ORDER.reduce((a,b)=>w[a]>=w[b]?a:b);
+    w[maior]+=100-soma;
+  }
   return w;
 }
 function discCfgLoad(){
@@ -1698,10 +1714,11 @@ function getDiscWeights(){
       }
     }
   }catch(e){}
-  // Default: use banca incidence
-  const total=Object.values(DISC_WEIGHTS.by_disc).reduce((t,v)=>t+(v.total||0),0)||1;
+  // Default: incidência das bancas PONDERADA pelos pesos configurados
+  const keys=Object.keys(DISC_WEIGHTS.by_disc);
+  const total=keys.reduce((t,d)=>t+_discIncPonderada(d),0)||1;
   const w={};
-  for(const[d,v] of Object.entries(DISC_WEIGHTS.by_disc)) w[d]=(v.total||0)/total;
+  keys.forEach(d=>{ w[d]=_discIncPonderada(d)/total; });
   return w;
 }
 
@@ -4565,6 +4582,7 @@ function cfgBancaApply(){
     keys.forEach(k=>{ BANCA_CFG[k] = raw[k] / totalPct * keys.length; });
   }
   bancaSaveCfg();
+  discCfgRenderSliders(); // proporção por área deriva da incidência ponderada — reflete os novos pesos
   _spOfferReplanCurrentWeek(true); // oferece aplicar os novos pesos à semana atual
   // Full recompute
   invalidateCache(); recomputeScheduler(); updateSidebar(); renderHoje();
