@@ -1239,6 +1239,84 @@ srLoadCfg();
 // PLANILHA and DISC_WEIGHTS loaded from planilha.js
 
 // ═══════════════════════════════════════════════════════
+// IDENTIDADE DOS ASSUNTOS
+// O NOME é a chave que liga sessão ↔ assunto ↔ tarefa da semana. A planilha traz
+// nomes com quebra de linha (CRLF), espaços sobrando, entidades HTML (&lt;) e
+// nomes repetidos entre áreas ("Introdução" ×4, "Sepse" ×3, "Infecção do Trato
+// Urinário" ×2). Isso fazia o botão "Registrar sessão" falhar (nova linha dentro de
+// uma string JS no onclick) e sessões não vincularem ao assunto. Tudo é
+// normalizado UMA vez, aqui, e vale para qualquer planilha futura.
+// ═══════════════════════════════════════════════════════
+function _decodeEnt(s){
+  return String(s==null?'':s).replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"')
+    .replace(/&#0*39;/g,"'").replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&');
+}
+// Nome "limpo" para exibição/armazenamento: sem quebras de linha, sem espaços sobrando.
+function _cleanName(s){
+  return String(s==null?'':s).replace(/\s*[\r\n]+\s*/g,' ').replace(/[ \t ]{2,}/g,' ').trim();
+}
+// Chave de comparação: ignora espaços/quebras, caixa, acentos e entidades HTML.
+function _nk(s){
+  return _decodeEnt(s).normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[\s ​-‍﻿]+/g,'').toLowerCase();
+}
+// Argumento seguro para handlers inline (onclick="fn(...)"): literal JSON — escapa
+// aspas, barras e quebras de linha — e depois escapa para atributo HTML.
+function _jsq(v){
+  return JSON.stringify(v==null?'':String(v)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+const _IDX_CANON={}, _IDX_LEGACY={}, _IDX_ID={};
+(function _normalizePlanilha(){
+  PLANILHA.forEach(t=>{ t.nOrig=t.n; t.n=_cleanName(t.n); if(t.topico!=null) t.topico=_cleanName(t.topico); });
+  // Nomes repetidos viram únicos acrescentando o subtópico — o nome é a chave de vínculo.
+  const cnt={}; PLANILHA.forEach(t=>{ const k=_nk(t.n); cnt[k]=(cnt[k]||0)+1; });
+  PLANILHA.forEach(t=>{ if(cnt[_nk(t.n)]>1 && t.topico) t.n=t.n+' ('+t.topico+')'; });
+  // Garantia final de unicidade (mesmo nome+subtópico repetido): numera.
+  const seen={};
+  PLANILHA.forEach(t=>{ let k=_nk(t.n), i=1;
+    while(seen[k]){ i++; k=_nk(t.n+' #'+i); }
+    if(i>1) t.n=t.n+' #'+i;
+    seen[k]=true; });
+  PLANILHA.forEach(t=>{
+    t.id=t.disc+'::'+t.n;                       // id = área::nome (único)
+    _IDX_ID[t.id]=t;
+    _IDX_CANON[_nk(t.n)]=t;
+    const lk=_nk(t.nOrig); (_IDX_LEGACY[lk]=_IDX_LEGACY[lk]||[]).push(t);
+  });
+})();
+
+// Resolve um nome digitado/gravado (inclusive nomes ANTIGOS, ambíguos) para o assunto real.
+function _resolveTopic(n,disc){
+  const k=_nk(n); if(!k) return null;
+  if(_IDX_CANON[k]) return _IDX_CANON[k];
+  const L=_IDX_LEGACY[k]; if(!L) return null;
+  return L.length===1 ? L[0] : (L.find(t=>t.disc===disc)||L[0]);
+}
+function _canonName(n,disc){ const t=_resolveTopic(n,disc); return t?t.n:_cleanName(n); }
+// Identidade de um assunto a partir de (nome, área, id gravado) — usada p/ comparar tarefas e sessões.
+function _topicIdOf(n,disc,topicId){
+  if(topicId && _IDX_ID[topicId]) return topicId;
+  const t=_resolveTopic(n,disc); return t?t.id:('CUSTOM::'+_nk(n));
+}
+// Índice sessão→assunto, reconstruído quando as sessões mudam.
+let _SESS_IDX=null;
+function _buildSessIdx(){
+  const idx={src:STATE.sessions,len:STATE.sessions.length,by:{},custom:{}};
+  STATE.sessions.forEach(s=>{
+    const t=_resolveTopic(s.n,s.disc);
+    if(t){ (idx.by[t.id]=idx.by[t.id]||[]).push(s); }
+    else { const k=_nk(s.n); if(!k) return;
+      (idx.custom[k]=idx.custom[k]||{n:_cleanName(s.n),disc:s.disc,list:[]}).list.push(s); }
+  });
+  _SESS_IDX=idx; return idx;
+}
+function _sessIdx(){
+  return (_SESS_IDX&&_SESS_IDX.src===STATE.sessions&&_SESS_IDX.len===STATE.sessions.length)?_SESS_IDX:_buildSessIdx();
+}
+
+// ═══════════════════════════════════════════════════════
 // LAYER 2 — CONSTANTS & HELPERS
 // ═══════════════════════════════════════════════════════
 const TODAY = (()=>{const d=new Date();d.setHours(12,0,0,0);return d;})();
@@ -1322,7 +1400,7 @@ function labelWithToggleId(label,frozenName,topicId){
   var curName=frozenName;
   try{ if(typeof PLANILHA!=='undefined' && frozenName!=null){
     var p=PLANILHA.find(function(x){return x.id===topicId;});
-    if(!p) p=PLANILHA.find(function(x){return x.n===frozenName;});
+    if(!p) p=_resolveTopic(frozenName);
     if(!p) p=PLANILHA.find(function(x){ var ci=String(x.n).indexOf(':'); return ci>-1 && String(x.n).slice(0,ci).trim()===String(frozenName).trim(); });
     if(p&&p.n) curName=p.n;
   } }catch(e){}
@@ -1407,8 +1485,33 @@ function loadState(){
 
 // Migrate legacy wkChecks from numeric keys to uid keys
 // (runs once silently — old data still works via fallback in toggleTask)
+// Quantas sessões foram reconectadas ao assunto correto na última migração (p/ avisar o usuário).
+let _RELINK_COUNT=0;
 function migrateState(){
   var dirty=false;
+  _RELINK_COUNT=0;
+  // 0. Reconecta sessões gravadas com nome ANTIGO/alterado (quebra de linha removida pelo
+  //    navegador, espaço final cortado, "&lt;", nomes repetidos entre áreas) ao assunto
+  //    real, regravando o nome canônico. Sessões de assuntos realmente avulsos ficam como estão.
+  if(Array.isArray(STATE.sessions)){
+    STATE.sessions.forEach(function(s){
+      var tp=_resolveTopic(s.n,s.disc);
+      if(!tp) return;
+      if(s.n!==tp.n){ s.n=tp.n; _RELINK_COUNT++; dirty=true; }
+      if(s.disc!==tp.disc){ s.disc=tp.disc; dirty=true; }
+    });
+    if(dirty){ _SESS_IDX=null; if(_RELINK_COUNT){ try{ queueCloudSave(); }catch(e){} } }
+  }
+  // 0b. Tarefas congeladas com topicId antigo (ids duplicados/com quebra de linha) → id atual
+  if(STATE.weekPlans){
+    Object.keys(STATE.weekPlans).forEach(function(wk){
+      var arr=STATE.weekPlans[wk]; if(!Array.isArray(arr)) return;
+      arr.forEach(function(t){
+        var tp=_resolveTopic(t.n,t.disc);
+        if(tp && t.topicId!==tp.id){ t.topicId=tp.id; dirty=true; }
+      });
+    });
+  }
   // 1. Ensure task UIDs in weekPlans
   if(STATE.weekPlans){
     Object.keys(STATE.weekPlans).forEach(function(wkISO){
@@ -1449,23 +1552,6 @@ function persistState(){
 // carimbo para decidir qual lado vence — sem ele, um dispositivo com cache
 // antigo sobrescrevia as configs novas na nuvem ("parâmetros voltavam sozinhos").
 function _touchCfg(){ STATE.cfgUpdatedAt = Date.now(); }
-// ── Planilha version migration ──────────────────────────────────────
-// When planilha.js changes (new version), clear sessions to avoid
-// double-counting progress (new planilha already has progress embedded)
-(function migratePlanilha(){
-  const PLANILHA_VERSION = '2026-07-01-v2';
-  const storedVer = localStorage.getItem('qg_planilha_ver');
-  if(storedVer !== PLANILHA_VERSION){
-    try{
-      const st = JSON.parse(localStorage.getItem('qg_v5')||'{}');
-      if(st.sessions && st.sessions.length > 0){
-        st.sessions = [];
-        localStorage.setItem('qg_v5', JSON.stringify(st));
-      }
-    }catch(e){}
-    localStorage.setItem('qg_planilha_ver', PLANILHA_VERSION);
-  }
-})();
 
 loadState();
 recalcProva(); // agora com STATE disponível: usa a data configurada
@@ -1506,9 +1592,14 @@ function computeTopic(base){
   let r1=null, r2=null, r3=null;
   let stage='NOT_STARTED';
 
-  const userSess=STATE.sessions
-    .filter(s=>s.n===base.n)
-    .sort((a,b)=>a.data.localeCompare(b.data));
+  // Sessões do assunto por IDENTIDADE (nome normalizado + área), não por igualdade
+  // de texto — nomes com quebra de linha/espaços/entidades e nomes repetidos entre
+  // áreas não vinculam mais errado.
+  const _sx=_sessIdx();
+  const userSess=(String(base.id).startsWith('CUSTOM::')
+      ? ((_sx.custom[_nk(base.n)]||{}).list||[])
+      : (_sx.by[base.id]||[]))
+    .slice().sort((a,b)=>a.data.localeCompare(b.data));
 
   let q=0, a=0, pct=null;
 
@@ -1638,18 +1729,13 @@ function computeAll(){
   // Assuntos EXTRAS (fora da PLANILHA) registrados pelo usuário — ex.: tema
   // avulso pedido pela faculdade. Entram no ciclo normal do sistema (Q2/Q3
   // pendentes, revisões SM-2), com incidência 0 (prioridade baixa por design).
-  const _known=new Set(PLANILHA.map(p=>p.n));
-  const _seenExtra=new Set();
-  STATE.sessions.forEach(s=>{
-    if(s.n&&!_known.has(s.n)&&!_seenExtra.has(s.n)){
-      _seenExtra.add(s.n);
-      _cache.push(computeTopic({id:'CUSTOM::'+s.n,disc:s.disc||'CLM',topico:'EXTRA',n:s.n,am:0,ap:0,sa:0,sc:0}));
-    }
+  Object.values(_sessIdx().custom).forEach(c=>{
+    _cache.push(computeTopic({id:'CUSTOM::'+c.n,disc:c.disc||'CLM',topico:'EXTRA',n:c.n,am:0,ap:0,sa:0,sc:0}));
   });
   _cacheKey=key;
   return _cache;
 }
-function invalidateCache(){_cache=null;_cacheKey='';}
+function invalidateCache(){_cache=null;_cacheKey='';_SESS_IDX=null;}
 
 // ═══════════════════════════════════════════════════════
 // LAYER 6 — SCHEDULER ENGINE
@@ -2006,7 +2092,7 @@ function updateSidebar(){
 function openReg(n,disc,tipo){
   document.getElementById('m-reg').classList.add('open');
   document.getElementById('mr-data').value=ISO_TODAY;
-  if(n) document.getElementById('mr-n').value=n;
+  if(n) document.getElementById('mr-n').value=_decodeEnt(n);
   if(disc) document.getElementById('mr-disc').value=disc;
   if(tipo) document.getElementById('mr-tipo').value=tipo;
   document.getElementById('mr-al').innerHTML=PLANILHA.map(t=>`<option value="${t.n}">`).join('');
@@ -2113,14 +2199,14 @@ function _ensureSessionInWeekPlan(sess){
   if(!type) return false;
   // Se já existe tarefa compatível no plano, o auto-match cuida do check — não duplica
   var exists=plan.some(function(t){
-    if(t.n!==sess.n) return false;
+    if(_topicIdOf(t.n,t.disc,t.topicId)!==_topicIdOf(sess.n,sess.disc)) return false;
     if(t.type==='SPACED_REV'&&type==='SPACED_REV') return true;
     if(t.type==='NEW'&&(type==='NEW'||type==='Q1_TASK')) return true;
     return t.type===type;
   });
   if(exists) return false;
-  var pl=PLANILHA.find(function(p){return p.n===sess.n;});
-  var topicId=pl?pl.id:('CUSTOM::'+sess.n);
+  var pl=_resolveTopic(sess.n,sess.disc);
+  var topicId=pl?pl.id:('CUSTOM::'+_cleanName(sess.n));
   var uid=curISO+'_'+type+'_'+topicId;
   if(plan.some(function(p){return (p.uid||'')===uid;})) return false;
   var TL={NEW:'Novo conteúdo',Q1_TASK:'Bloco Q1',Q2_TASK:'Bloco Q2',Q3_TASK:'Bloco Q3',SPACED_REV:'Revisão'};
@@ -2134,8 +2220,13 @@ function _ensureSessionInWeekPlan(sess){
 }
 
 function doSave(){
-  const n=document.getElementById('mr-n').value.trim();if(!n)return;
-  const disc=document.getElementById('mr-disc').value;
+  const nRaw=document.getElementById('mr-n').value.trim();if(!nRaw)return;
+  const discSel=document.getElementById('mr-disc').value;
+  // Resolve o que foi digitado/escolhido para o assunto real: grava o nome canônico
+  // e a área DO ASSUNTO (não a do seletor, que pode ter ficado no padrão).
+  const _tp=_resolveTopic(nRaw,discSel);
+  const n=_tp?_tp.n:_cleanName(nRaw);
+  const disc=_tp?_tp.disc:discSel;
   const tipo=document.getElementById('mr-tipo').value;
   const q=+document.getElementById('mr-q').value||0;
   const a=+document.getElementById('mr-a').value||0;
@@ -2159,11 +2250,13 @@ function doSave(){
   _showToast(_added?'✓ Sessão registrada · incluída na semana como extra':'✓ Sessão registrada');
 }
 function doSaveQ(){
-  const n=document.getElementById('sq-n').value.trim();if(!n)return;
+  const nRaw=document.getElementById('sq-n').value.trim();if(!nRaw)return;
   const tipo=document.getElementById('sq-tipo').value;
   const q=+document.getElementById('sq-q').value||0;
   const a=+document.getElementById('sq-a').value||0;
-  const disc=PLANILHA.find(t=>t.n===n)?.disc||'CLM';
+  const _tp=_resolveTopic(nRaw,'CLM');
+  const n=_tp?_tp.n:_cleanName(nRaw);
+  const disc=_tp?_tp.disc:'CLM';
   STATE.sessions.push({id:'u'+Date.now(),data:ISO_TODAY,n,disc,tipo,q,a,obs:''});
   if(!STATE.heatmap[ISO_TODAY]) STATE.heatmap[ISO_TODAY]=0;
   STATE.heatmap[ISO_TODAY]++;
@@ -2250,7 +2343,7 @@ function openTopicModal(t){
   document.getElementById('m-topic-body').innerHTML=`
     <div class="modal-title">${(()=>{const _ci=t.n.indexOf(":");if(_ci>-1){const _pre=t.n.slice(0,_ci).trim();const _post=t.n.slice(_ci+1).trim();return _pre+"<div style=\"font-size:11px;color:var(--t3);font-weight:400;margin-top:3px;line-height:1.4\">"+_post+"</div>";}return t.n;})()}</div>
     <div class="row mb8"><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span><span class="chip cdk">${t.topico||''}</span>
-    <span style="font-size:11px;color:var(--t3)">Inc: <strong>${t.inc}</strong> · Pri: <strong style="cursor:pointer;text-decoration:underline dotted" title="Clique para ver o cálculo" onclick="showPriorityInfo('${t.id.replace(/'/g,"\\'")}')">${t.priority} ⓘ</strong></span></div>
+    <span style="font-size:11px;color:var(--t3)">Inc: <strong>${t.inc}</strong> · Pri: <strong style="cursor:pointer;text-decoration:underline dotted" title="Clique para ver o cálculo" onclick="showPriorityInfo(${_jsq(t.id)})">${t.priority} ⓘ</strong></span></div>
     <div class="pipe mb12">
       ${pipe.map((p,i)=>`<span class="pstep ${i<ci?'done-s':i===ci?'active':''}">${STAGE_LABEL[p]||p}</span>${i<pipe.length-1?'<span class="parr">›</span>':''}`).join('')}
     </div>
@@ -2294,7 +2387,7 @@ function openTopicModal(t){
     <div style="font-size:10px;color:var(--t3);margin-bottom:2px">Próxima ação</div>
     <div style="font-size:12.5px;font-weight:500;margin-bottom:3px">${getActionLabel(t)}</div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:10px">${getExpl(t)}</div>
-    <button class="btn btn-k" onclick="openReg('${t.n.replace(/'/g,"\\'")}','${t.disc}',null);closeModal('m-topic')" style="width:100%">+ Registrar sessão</button>`;
+    <button class="btn btn-k" onclick="openReg(${_jsq(t.n)},${_jsq(t.disc)},null);closeModal('m-topic')" style="width:100%">+ Registrar sessão</button>`;
   document.getElementById('m-topic').classList.add('open');
 }
 
@@ -2322,7 +2415,7 @@ function renderHoje(){
   const urgent=[...lateRevs.map(t=>({tp:'rev',t})),...lateBlks.map(t=>({tp:'blk',t}))].slice(0,8);
   document.getElementById('h-chip').textContent=urgent.length;
   document.getElementById('h-urgent').innerHTML=urgent.length?urgent.map(({tp,t})=>`
-    <div class="tc" onclick="if(event.target.closest('.tt-tog'))return;openTopicById('${t.id.replace(/'/g,"\\'")}')">
+    <div class="tc" onclick="if(event.target.closest('.tt-tog'))return;openTopicById(${_jsq(t.id)})">
       <div class="tc-main">
         <div class="tc-title">${tp==='rev'?'🔴 Rev. atrasada':'⚠ Bloco atrasado'}: ${ttHTML(t.n)} (${t.disc})</div>
         <div class="tc-meta"><span class="tp ${tp==='rev'?'tp-rev':'tp-q2'}">${tp==='rev'?'REVISÃO':'BLOCO'}</span>
@@ -2438,7 +2531,8 @@ function quickQ(wkISO, uid){
   if(!task) return;
   // mapeia o tipo da tarefa para o tipo de sessão registrada
   var TYPE_MAP={NEW:'CONTENT_SEEN',Q1_TASK:'Q1_DONE',Q2_TASK:'Q2_DONE',Q3_TASK:'Q3_DONE',SPACED_REV:'SPACED_REV'};
-  _quickCtx={wkISO:wkISO, uid:uid, n:task.n, disc:task.disc, tipo:TYPE_MAP[task.type]||'Q1_DONE'};
+  var _qt=_resolveTopic(task.n,task.disc);
+  _quickCtx={wkISO:wkISO, uid:uid, n:_qt?_qt.n:_cleanName(task.n), disc:_qt?_qt.disc:task.disc, tipo:TYPE_MAP[task.type]||'Q1_DONE'};
   var TL={NEW:'Conteúdo novo',Q1_TASK:'Q1',Q2_TASK:'Q2',Q3_TASK:'Q3',SPACED_REV:'Revisão'};
   document.getElementById('mq-title').textContent='Registrar: '+task.n;
   document.getElementById('mq-sub').textContent=(TL[task.type]||task.type)+' · '+(task.disc||'');
@@ -2754,7 +2848,7 @@ function renderSemana(){
     var isDone = !!(exec[k] && exec[k].completed);
     var wk     = curWk.wkISO;
     return '<div class="tc '+(isDone?'done-c':'')+'" id="stc-'+wk+'-'+k+'"'+(isDone?' style="border-color:#86efac;"':'')+
-      ' onclick="if(event.target.closest(\'.tt-tog\'))return;quickQ(\''+wk+'\',\''+k+'\')" style="cursor:pointer"'+
+      ' onclick="if(event.target.closest(\'.tt-tog\'))return;quickQ('+_jsq(wk)+','+_jsq(k)+')" style="cursor:pointer"'+
       ' title="'+(isDone?'Concluída · registrada':'Clique para registrar as questões e concluir')+'">'+
       // Indicador (somente leitura): o check aparece apenas mediante registro da atividade
       '<input type="checkbox"'+(isDone?' checked':'')+' disabled'+
@@ -2945,7 +3039,7 @@ function renderFila(){
       <div style="font-size:11px;opacity:.55">${nxt.disc} · ${getActionLabel(nxt)}</div>
       <div style="font-size:10px;opacity:.38;margin-top:4px">${getExpl(nxt)}</div>
     </div>
-    <button class="btn btn-k btn-sm" onclick="openReg('${nxt.n.replace(/'/g,"\\'")}','${nxt.disc}',null)">+ Registrar sessão</button>`
+    <button class="btn btn-k btn-sm" onclick="openReg(${_jsq(nxt.n)},${_jsq(nxt.disc)},null)">+ Registrar sessão</button>`
     :'<div class="empty">Nenhum item.</div>';
   document.getElementById('fila-stats').innerHTML=[
     ['Não iniciados',all.filter(t=>t.stage==='NOT_STARTED').length,'s-pend'],
@@ -2960,12 +3054,12 @@ function renderFila(){
     <td style="font-weight:500">${ttHTML(t.n)}</td>
     <td><span class="chip ${DISC_CHIP[t.disc]}">${t.disc}</span></td>
     <td style="font-size:11px">${getActionLabel(t)}</td>
-    <td style="font-weight:700;cursor:pointer;text-decoration:underline dotted;color:${t.priority>100?'var(--red)':t.priority>60?'var(--amb)':'var(--t)'}" title="Clique para ver o cálculo" onclick="showPriorityInfo('${t.id.replace(/'/g,"\\'")}')">${t.priority}</td>
+    <td style="font-weight:700;cursor:pointer;text-decoration:underline dotted;color:${t.priority>100?'var(--red)':t.priority>60?'var(--amb)':'var(--t)'}" title="Clique para ver o cálculo" onclick="showPriorityInfo(${_jsq(t.id)})">${t.priority}</td>
     <td style="text-align:center">${t.inc}</td>
     <td>${t.pct!==null?`<span style="font-weight:600;color:${acColor(t.pct)}">${t.pct}%</span>`:'—'}</td>
     <td><span class="st ${STAGE_CLASS[t.extStage]||'s-pend'}">${STAGE_LABEL[t.extStage]||t.extStage}</span></td>
     <td style="font-size:9px;color:var(--t3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${getExpl(t)}</td>
-    <td><button class="btn btn-sm" onclick="openReg('${t.n.replace(/'/g,"\\'")}','${t.disc}',null)">+</button></td>
+    <td><button class="btn btn-sm" onclick="openReg(${_jsq(t.n)},${_jsq(t.disc)},null)">+</button></td>
   </tr>`).join('');
 }
 
@@ -3008,7 +3102,7 @@ function renderRevisoes(){
     <td style="font-size:10.5px;font-weight:600">${fmtD(t.nextRev)}</td>
     <td style="font-size:10px;color:var(--t3)">${t.revInterval?t.revInterval+'d':'—'}</td>
     <td><span class="st ${SC2[t.revStatus]||'s-pend'}">${SL2[t.revStatus]||'—'}</span></td>
-    <td><button class="btn btn-sm" onclick="openReg('${t.n.replace(/'/g,"\\'")}','${t.disc}','SPACED_REV')">+ Rev</button></td>
+    <td><button class="btn btn-sm" onclick="openReg(${_jsq(t.n)},${_jsq(t.disc)},'SPACED_REV')">+ Rev</button></td>
   </tr>`).join('');
 }
 
@@ -3070,8 +3164,8 @@ function renderCron(){
               ? !!(wkExec[k]&&wkExec[k].completed)
               : !!(checks[k]||checks[i]);
             var advBtn = (!w.isCurrent && !w.isPast)
-              ? '<button onclick="advanceTask(\''+w.wkISO+'\',' +
-                '\''+k+'\')" title="Adiantar para semana atual" ' +
+              ? '<button onclick="advanceTask('+_jsq(w.wkISO)+',' +
+                _jsq(k)+')" title="Adiantar para semana atual" ' +
                 'style="font-size:9px;padding:1px 5px;border:1px solid var(--b);' +
                 'border-radius:3px;background:var(--s2);color:var(--t3);cursor:pointer;' +
                 'flex-shrink:0;margin-left:2px">&#8593; Adiantar</button>'
@@ -3395,7 +3489,7 @@ function delSess(id){
   Object.keys(STATE.weekExecution||{}).forEach(function(wkISO){
     var ex=STATE.weekExecution[wkISO]||{};
     (STATE.weekPlans[wkISO]||[]).forEach(function(task){
-      if(task.n!==sess.n) return;
+      if(_topicIdOf(task.n,task.disc,task.topicId)!==_topicIdOf(sess.n,sess.disc)) return;
       var k=task.uid||String(task.idx||0);
       if(ex[k]&&(ex[k].source==='auto_match'||ex[k].source==='quick')) delete ex[k];
     });
@@ -3559,7 +3653,7 @@ function _autoMatchSessionToWeekPlan(targetWkISO){
     var k=task.uid||String(task.idx||0);
     if(exec[k]&&exec[k].completed) return;
     var matched=wkSessions.find(function(s){
-      if(s.n!==task.n) return false;
+      if(_topicIdOf(s.n,s.disc)!==_topicIdOf(task.n,task.disc,task.topicId)) return false;
       if(task.type==='SPACED_REV'&&['SPACED_REV','THEORY_REV','QUICK_REV','ERROR_REV','FINAL_REV'].includes(s.tipo)) return true;
       if(task.type==='NEW'&&['Q1_DONE','CONTENT_SEEN'].includes(s.tipo)) return true;
       if(task.type==='Q1_TASK'&&s.tipo==='Q1_DONE') return true;
@@ -3648,7 +3742,7 @@ function validateScheduler(){
   Object.keys(STATE.weekPlans).forEach(function(wkISO){
     var uids={};
     (STATE.weekPlans[wkISO]||[]).forEach(function(t){
-      if(t.topicId&&!topicMap[t.topicId])
+      if(t.topicId&&!topicMap[t.topicId]&&!_resolveTopic(t.n,t.disc))
         issues.push({type:'ORPHAN_TASK',wkISO:wkISO,task:t.n});
       var k=t.uid||'';
       if(uids[k]) issues.push({type:'DUPLICATE_UID',wkISO:wkISO,uid:k});
@@ -4447,11 +4541,13 @@ async function _adoptUser(user){
 
   invalidateCache();
   migrateState();
+  var _relinked=_RELINK_COUNT;
   recomputeScheduler();
   checkAndCloseWeeks();
   _lastValidation=validateScheduler();
   updateSidebar();
   renderHoje();
+  if(_relinked>0) _showToast('✓ '+_relinked+' registro(s) de estudo foram reconectados ao assunto correto');
   var mrAl=document.getElementById('mr-al');
   if(mrAl) mrAl.innerHTML=PLANILHA.map(function(t){return '<option value="'+t.n+'">';}).join('');
 }
