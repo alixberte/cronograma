@@ -513,6 +513,30 @@ Exemplo do impacto (dados reais da planilha): com 100% AMRIGS a Preventiva cai d
 
 ---
 
+## v5.0
+
+Corrigido:
+
+- **Botão "Registrar sessão" não funcionava em alguns assuntos** (ATLS, Cirurgia do Contorno Corporal, Diagnóstico de gestação e fisiologia da gestação normal, PALS). Causa: a planilha traz esses nomes com **quebra de linha (CRLF)** e o nome era embutido, sem escape, numa string JavaScript dentro do `onclick`; uma nova linha dentro de string é erro de sintaxe e o clique não fazia nada. Afetava igualmente contas novas
+- **Registros que "não atualizavam" o assunto**: ao digitar/escolher o nome, o navegador remove a quebra de linha, o formulário corta espaços finais e decodifica `&lt;` — o nome gravado deixava de ser idêntico ao do assunto, a sessão nunca vinculava e ainda criava um "assunto fantasma". Afetava 6 assuntos pelo registro por formulário, mais "Reanimação…" (que contém `&lt;`) pelo modal
+- **Nomes repetidos misturavam progresso entre assuntos**: "Introdução" (×4: Gastro, Nefro, Dermato, Reumato), "Sepse" (×3) e "Infecção do Trato Urinário" (×2) eram o mesmo assunto para o sistema (e `CLM::Introdução` ×4 / `PED::Sepse` ×2 compartilhavam o mesmo id) — registrar um marcava todos. Agora são distintos, com o subtópico no nome ("Introdução (NEFRO)", "Sepse (NEONATO)")
+- Tarefas do quadro "Esta semana" congeladas com id antigo (com quebra de linha) não abriam o pop-up de registro
+
+Alterado:
+
+- **Identidade dos assuntos centralizada**: nomes são limpos uma única vez na carga (sem quebras de linha/espaços/duplicidade), com índices por nome canônico e por nome antigo; vale para qualquer planilha futura
+- Sessões e tarefas passam a ser vinculadas por **identidade** (nome normalizado — ignora espaços, caixa, acentos e entidades HTML — e área), não por igualdade de texto
+- Todo registro grava o **nome canônico e a área do assunto** (antes a área vinha do seletor, que podia ficar no padrão)
+- Handlers inline usam `_jsq()` (literal JSON escapado): qualquer caractere em nome/uid é entregue exatamente como gravado
+
+Migração automática (uma vez, idempotente):
+
+- Sessões já gravadas com nome antigo/alterado são **reconectadas ao assunto correto** e o nome canônico é regravado; o usuário é avisado por toast ("N registro(s) de estudo foram reconectados ao assunto correto"). Sessões de assuntos realmente avulsos permanecem como estão
+- Limitação conhecida: um registro antigo com o nome genérico repetido ("Introdução", "Sepse") só pode ser atribuído à primeira ocorrência da mesma área — não há como saber qual das quatro "Introdução" foi estudada
+- Tarefas congeladas da semana têm o `topicId` atualizado
+
+---
+
 ## Próxima Versão
 
 Planejado:
