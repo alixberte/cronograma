@@ -1552,23 +1552,6 @@ function persistState(){
 // carimbo para decidir qual lado vence — sem ele, um dispositivo com cache
 // antigo sobrescrevia as configs novas na nuvem ("parâmetros voltavam sozinhos").
 function _touchCfg(){ STATE.cfgUpdatedAt = Date.now(); }
-// ── Planilha version migration ──────────────────────────────────────
-// When planilha.js changes (new version), clear sessions to avoid
-// double-counting progress (new planilha already has progress embedded)
-(function migratePlanilha(){
-  const PLANILHA_VERSION = '2026-07-01-v2';
-  const storedVer = localStorage.getItem('qg_planilha_ver');
-  if(storedVer !== PLANILHA_VERSION){
-    try{
-      const st = JSON.parse(localStorage.getItem('qg_v5')||'{}');
-      if(st.sessions && st.sessions.length > 0){
-        st.sessions = [];
-        localStorage.setItem('qg_v5', JSON.stringify(st));
-      }
-    }catch(e){}
-    localStorage.setItem('qg_planilha_ver', PLANILHA_VERSION);
-  }
-})();
 
 loadState();
 recalcProva(); // agora com STATE disponível: usa a data configurada

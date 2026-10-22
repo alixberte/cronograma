@@ -535,6 +535,10 @@ Migração automática (uma vez, idempotente):
 - Limitação conhecida: um registro antigo com o nome genérico repetido ("Introdução", "Sepse") só pode ser atribuído à primeira ocorrência da mesma área — não há como saber qual das quatro "Introdução" foi estudada
 - Tarefas congeladas da semana têm o `topicId` atualizado
 
+Removido:
+
+- **`migratePlanilha()`** (código legado de 2026-07): ao abrir o app sem o marcador `qg_planilha_ver` no navegador (aba anônima, cache limpo, navegador novo), ele **zerava as sessões** do cache local `qg_v5` — risco de perda de histórico. Era obsoleto: a planilha ignora os campos de progresso (`computeTopic`) e não há mais dupla contagem. Testado em navegador real: cache com 2 sessões e sem marcador → antes ficava com 0, agora mantém as 2
+
 ---
 
 ## Próxima Versão
