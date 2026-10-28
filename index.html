@@ -1321,6 +1321,7 @@ function _sessIdx(){
 // ═══════════════════════════════════════════════════════
 const TODAY = (()=>{const d=new Date();d.setHours(12,0,0,0);return d;})();
 const ISO_TODAY = TODAY.toISOString().split('T')[0];
+function _localISO(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 // Data da prova: SEMPRE a que o usuário preencheu em Configurações
 // (STATE.examDate, sincronizado). Não existe data padrão nem sugerida — sem
 // preenchimento, PROVA/DIAS_PROVA ficam null e a interface pede o preenchimento.
@@ -1426,7 +1427,8 @@ function LS_KEY(){ return CURRENT_UID ? 'qg_v5__'+CURRENT_UID : 'qg_v5'; }
 
 function _emptyState(){
   return {sessions:[],simulados:[],weekPlans:{},weekExecution:{},weekHistory:{},
-    schedulerParams:{minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15},heatmap:{},v:5};
+    schedulerParams:{minNew:50,minQ1:30,minQ2:30,minQ3:30,minRev:30,hrsPerWk:15},heatmap:{},
+    deleted:{},planAt:{},v:5};
 }
 
 function loadState(){
@@ -1552,6 +1554,33 @@ function persistState(){
 // carimbo para decidir qual lado vence — sem ele, um dispositivo com cache
 // antigo sobrescrevia as configs novas na nuvem ("parâmetros voltavam sozinhos").
 function _touchCfg(){ STATE.cfgUpdatedAt = Date.now(); }
+
+// Estado do sync. Declarado AQUI (antes de loadState/checkAndCloseWeeks do início) porque o
+// fechamento de semanas roda na carga e marca SYNC.dirty: com a declaração lá embaixo, o primeiro
+// carregamento de uma semana nova dava "Cannot access 'SYNC' before initialization", o script
+// abortava antes de registrar o login e o app ficava preso até um F5.
+const SYNC = {
+  status: 'idle',   // idle | syncing | ok | error
+  lastSync: localStorage.getItem('qg_last_sync') || '',
+  dirty: false,
+  ready: false,     // true depois que o login terminou de carregar os dados (libera as puxadas)
+  AUTO_INTERVAL_MS: 30000,
+};
+
+// Lápides: ids EXCLUÍDOS de propósito (s=sessão, m=simulado, w=semana do histórico,
+// x='semana|uid' marca de tarefa). O syncMerge une o que há neste aparelho com o que há
+// na nuvem; sem lápide, qualquer coisa apagada aqui "ressuscitaria" a partir de outro lado.
+function _tomb(kind,key){
+  if(!STATE.deleted) STATE.deleted={};
+  if(!STATE.deleted[kind]) STATE.deleted[kind]={};
+  STATE.deleted[kind][key]=Date.now();
+}
+// Versão do plano congelado de uma semana. Quando dois aparelhos têm planos diferentes
+// para a mesma semana (ex.: um replanejou), vence o carimbo mais recente.
+function _stampPlan(wkISO){
+  if(!STATE.planAt) STATE.planAt={};
+  STATE.planAt[wkISO]=Date.now();
+}
 
 loadState();
 recalcProva(); // agora com STATE disponível: usa a data configurada
@@ -2031,6 +2060,7 @@ function recomputeScheduler(){
           min: t.min||_minForType(t.type)
         });
       });
+      _stampPlan(wkISO);
     }
   }
 }
@@ -2059,13 +2089,16 @@ function NAV(id,el){
   const pg=document.getElementById('page-'+id);if(pg)pg.classList.add('active');
   if(el)el.classList.add('act');
   document.getElementById('page-title').textContent=TITLES[id]||id;
-  const fn={hoje:renderHoje,semana:renderSemana,fila:renderFila,revisoes:renderRevisoes,
+  const fn=_pageRenderer(id);
+  if(fn) setTimeout(fn,0);
+}
+function _pageRenderer(id){
+  return {hoje:renderHoje,semana:renderSemana,fila:renderFila,revisoes:renderRevisoes,
     cron:renderCron,
     mapa:()=>renderMap('map-all',null),
     clm:()=>renderMap('map-clm','CLM'),clc:()=>renderMap('map-clc','CLC'),
     go:()=>renderMap('map-go','GO'),ped:()=>renderMap('map-ped','PED'),prev:()=>renderMap('map-prev','PREVENTIVA'),
-    perf:renderPerf,hist:renderHist,sims:renderSims,'hist-sem':renderHistSemanal,config:renderConfig};
-  if(fn[id]) setTimeout(fn[id],0);
+    perf:renderPerf,hist:renderHist,sims:renderSims,'hist-sem':renderHistSemanal,config:renderConfig}[id];
 }
 document.getElementById('today-str').textContent=TODAY.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
 
@@ -2189,8 +2222,8 @@ function openTopicById(id){
 // Sessão registrada para assunto FORA do plano da semana (ex.: tema avulso da
 // faculdade): inclui a tarefa correspondente no board da semana, já marcada
 // como concluída — contabiliza no cumprimento/horas e fica visível ao lado.
-function _ensureSessionInWeekPlan(sess){
-  var curISO=_mondayISO();
+function _ensureSessionInWeekPlan(sess,wkISO){
+  var curISO=wkISO||_mondayISO();
   var plan=STATE.weekPlans[curISO];
   if(!plan) return false; // semana ainda não congelada — o freeze já incluirá o estado novo
   var TYPE_MAP={CONTENT_SEEN:'NEW',Q1_DONE:'Q1_TASK',Q2_DONE:'Q2_TASK',Q3_DONE:'Q3_TASK',
@@ -2215,8 +2248,30 @@ function _ensureSessionInWeekPlan(sess){
     label:'📌 '+(TL[type]||type)+' (extra): '+sess.n+' ('+(sess.disc||'')+')',
     explain:'Incluído automaticamente pelo registro — fora do plano original'});
   if(!STATE.weekExecution[curISO]) STATE.weekExecution[curISO]={};
-  STATE.weekExecution[curISO][uid]={completed:true,completed_at:Date.now(),source:'quick'};
+  STATE.weekExecution[curISO][uid]={completed:true,source:'quick',
+    completed_at:sess.data?new Date(sess.data+'T12:00:00').getTime():Date.now()};
   return true;
+}
+
+// Reconcilia a semana com as SESSÕES já registradas: marca as tarefas equivalentes e inclui
+// como "extra" o que foi estudado fora do plano — com qualquer data da semana e vindo de
+// qualquer aparelho. Antes isso só acontecia no instante do registro, neste aparelho: sessões
+// que chegavam da nuvem (ou eram reconectadas pela migração) nunca apareciam em "Esta semana".
+// Idempotente. Devolve true se algo mudou.
+function _reconcileWeek(wkISO){
+  wkISO=wkISO||_weekStartISO();
+  var plan=STATE.weekPlans&&STATE.weekPlans[wkISO];
+  if(!Array.isArray(plan)) return false;
+  var snap=function(){ return plan.length+'|'+JSON.stringify(STATE.weekExecution[wkISO]||{}); };
+  var before=snap();
+  var end=addDays(wkISO,6);
+  (STATE.sessions||[]).forEach(function(se){
+    if(se.data<wkISO||se.data>end) return;
+    if(String(se.id).indexOf('pl_')===0) return; // histórico importado da planilha, não é estudo da semana
+    _ensureSessionInWeekPlan({n:se.n,disc:se.disc,tipo:se.tipo,data:se.data},wkISO);
+  });
+  _autoMatchSessionToWeekPlan(wkISO);
+  return snap()!==before;
 }
 
 function doSave(){
@@ -2241,7 +2296,8 @@ function doSave(){
     STATE.heatmap[data]++;
   }
   // Assunto fora do plano → vira tarefa extra checada no board da semana
-  var _added=(data===ISO_TODAY)?_ensureSessionInWeekPlan({n:n,disc:disc,tipo:tipo}):false;
+  var _wk0=_weekStartISO();
+  var _added=(data>=_wk0&&data<=addDays(_wk0,6))?_ensureSessionInWeekPlan({n:n,disc:disc,tipo:tipo,data:data},_wk0):false;
   afterSave(); closeModal('m-reg');
   ['mr-n','mr-q','mr-a','mr-obs'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('mr-mac').style.display='none';
@@ -2771,7 +2827,8 @@ function renderSemana(){
         min: t.min || _minForType(t.type)
       });
     });
-    persistState();
+    _stampPlan(curWk.wkISO);
+    persistState(); queueCloudSave(); // o plano congelado sobe já — outro aparelho não congela um diferente
   }
 
   // MIGRATION: inject Q1_TASK into frozen plans that were created before the Q1_TASK fix
@@ -2798,6 +2855,8 @@ function renderSemana(){
     });
     persistState();
   }
+  // Sessões da semana (inclusive as vindas de outro aparelho) → tarefas marcadas / extras
+  if(_reconcileWeek(curWk.wkISO)){ persistState(); queueCloudSave(); }
   // SOURCE OF TRUTH: weekPlans + weekExecution
   var plan = STATE.weekPlans[curWk.wkISO];
   var exec = STATE.weekExecution[curWk.wkISO] || {};
@@ -3232,6 +3291,7 @@ function advanceTask(srcWkISO, taskKey){
         min: t.min||(t.type==='NEW'?SP().minNew:t.type==='Q1_TASK'?SP().minQ1:t.type==='Q2_TASK'?SP().minQ2:t.type==='Q3_TASK'?SP().minQ3:SP().minRev)
       });
     });
+    _stampPlan(curWkISO);
   }
   var sp = SP();
   var newMin = srcTask.type==='NEW'?sp.minNew:srcTask.type==='Q1_TASK'?sp.minQ1:srcTask.type==='Q2_TASK'?sp.minQ2:srcTask.type==='Q3_TASK'?sp.minQ3:sp.minRev;
@@ -3485,15 +3545,19 @@ function delSess(id){
   var sess=STATE.sessions.find(function(s){ return s.id===id; });
   if(!sess) return;
   STATE.sessions=STATE.sessions.filter(function(s){ return s.id!==id; });
+  _tomb('s',id);
   // Remove auto-matched weekExecution entries for this topic then re-evaluate
   Object.keys(STATE.weekExecution||{}).forEach(function(wkISO){
     var ex=STATE.weekExecution[wkISO]||{};
+    var dropped=[];
     (STATE.weekPlans[wkISO]||[]).forEach(function(task){
       if(_topicIdOf(task.n,task.disc,task.topicId)!==_topicIdOf(sess.n,sess.disc)) return;
       var k=task.uid||String(task.idx||0);
-      if(ex[k]&&(ex[k].source==='auto_match'||ex[k].source==='quick')) delete ex[k];
+      if(ex[k]&&(ex[k].source==='auto_match'||ex[k].source==='quick')){ delete ex[k]; dropped.push(k); }
     });
     _autoMatchSessionToWeekPlan(wkISO);
+    // marcas que seguem desfeitas ganham lápide (senão voltariam da nuvem)
+    dropped.forEach(function(k){ if(!ex[k]) _tomb('x',wkISO+'|'+k); });
   });
   afterSave();
   fullRebuildScheduler();
@@ -3524,7 +3588,7 @@ function addSim(){
   persistState();queueCloudSave();renderSims();
   ['si-d','si-q','si-a','si-b','si-ano','si-obs'].forEach(i=>document.getElementById(i).value='');
 }
-function delSim(id){STATE.simulados=STATE.simulados.filter(s=>s.id!==id);persistState();queueCloudSave();renderSims();}
+function delSim(id){STATE.simulados=STATE.simulados.filter(s=>s.id!==id);_tomb('m',id);persistState();queueCloudSave();renderSims();}
 
 // ═══════════════════════════════════════════════════════
 // LAYER 20 — EXPORT / IMPORT
@@ -3649,6 +3713,7 @@ function _autoMatchSessionToWeekPlan(targetWkISO){
   var wkEnd=addDays(curWkISO,6);
   // Match ALL sessions in the target week, not just the last one
   var wkSessions=STATE.sessions.filter(function(s){ return s.data>=curWkISO&&s.data<=wkEnd; });
+  var _marked=0;
   plan.forEach(function(task){
     var k=task.uid||String(task.idx||0);
     if(exec[k]&&exec[k].completed) return;
@@ -3663,8 +3728,10 @@ function _autoMatchSessionToWeekPlan(targetWkISO){
     });
     if(matched){
       exec[k]={completed:true,completed_at:new Date(matched.data+'T12:00:00').getTime(),source:'auto_match'};
+      _marked++;
     }
   });
+  return _marked;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3971,6 +4038,7 @@ function delWeekHist(wkISO){
   var lbl=wh[wkISO].label||wkISO;
   if(!confirm('Excluir a semana "'+lbl+'" do histórico?\n\nEsta ação não pode ser desfeita (mas há backups semanais em Minha conta, se precisar restaurar).')) return;
   delete STATE.weekHistory[wkISO];
+  _tomb('w',wkISO);
   persistState();
   queueCloudSave();
   renderHistSemanal();
@@ -4108,13 +4176,6 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const AUTH = firebase.auth();
 const DB   = firebase.firestore();
 
-const SYNC = {
-  status: 'idle',   // idle | syncing | ok | error
-  lastSync: localStorage.getItem('qg_last_sync') || '',
-  dirty: false,
-  AUTO_INTERVAL_MS: 30000,
-};
-
 function _userDoc(){
   const u = AUTH.currentUser;
   return u ? DB.collection('users').doc(u.uid) : null;
@@ -4129,14 +4190,72 @@ function queueCloudSave(){
   SYNC._saveTimer = setTimeout(() => { if (AUTH.currentUser) syncSave(); }, 2000);
 }
 
-// ── Cloud save / load ─────────────────────────────────
+// Estado de sincronização em andamento (evita dois salvamentos/puxadas ao mesmo tempo)
+let _saveBusy = false, _savePending = false, _pulling = false, _lastPull = 0;
+const _sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function syncSave() {
+function _markSynced(){
+  SYNC.lastSync = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  localStorage.setItem('qg_last_sync', SYNC.lastSync);
+}
+
+// Lê o estado gravado na nuvem. Devolve o objeto, ou null se não há documento / formato desconhecido.
+async function _fetchRemote(ref) {
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const remote = JSON.parse(snap.data().data || '{}');
+  return (remote && (remote.v === 4 || remote.v === 5)) ? remote : null;
+}
+
+// Mescla o estado da nuvem no local e normaliza (migração, plano da semana, sessões × tarefas).
+// Devolve true se o STATE mudou. force=true roda o pipeline completo mesmo sem novidade.
+function _mergeRemote(remote, force) {
+  const before = JSON.stringify(STATE);
+  const merged = syncMerge(STATE, remote);
+  if (!force && JSON.stringify(merged) === before) return false; // nada novo na nuvem
+  STATE = merged;
+  invalidateCache();
+  migrateState();
+  checkAndCloseWeeks();
+  recomputeScheduler();   // congela a semana atual se ainda não houver plano
+  _reconcileWeek();       // sessões vindas da nuvem marcam tarefas / entram como extra
+  persistState();
+  return true;
+}
+
+// Atualiza o que está na tela depois de uma mesclagem. Com pop-up aberto, não mexe na tela.
+function _refreshAfterMerge() {
+  updateSidebar();
+  _lastValidation = validateScheduler();
+  if (document.querySelector('[id^="m-"].open')) return;
+  const id = ((document.querySelector('.page.active') || {}).id || '').replace(/^page-/, '');
+  const fn = _pageRenderer(id);
+  if (fn) fn();
+}
+
+// ── Cloud save / load ─────────────────────────────────
+// Salvar = puxar + mesclar + gravar. A nuvem é um documento único, e antes cada salvamento
+// o SOBRESCREVIA com o estado deste aparelho: quem ficava aberto com dados velhos apagava na
+// nuvem o que outro aparelho tinha acabado de registrar. Agora a nuvem é lida e mesclada antes.
+// overwrite=true grava sem mesclar (só para restaurar backup, que precisa substituir).
+
+async function syncSave(opts) {
+  opts = (opts && typeof opts === 'object' && !opts.target) ? opts : {};
   const ref = _userDoc();
   if (!ref) return;
+  if (_saveBusy) {
+    if (!opts.overwrite) { _savePending = true; return; }
+    while (_saveBusy) await _sleep(100);
+  }
+  _saveBusy = true;
   SYNC.status = 'syncing';
   syncUpdateUI();
+  let merged = false;
   try {
+    if (!opts.overwrite) {
+      const remote = await _fetchRemote(ref);
+      if (remote) merged = _mergeRemote(remote);
+    }
     await ref.set({
       data: JSON.stringify(STATE),
       email: AUTH.currentUser.email || '',
@@ -4145,14 +4264,16 @@ async function syncSave() {
     }, {merge:true}); // merge preserva o campo "profile" gravado no cadastro
     SYNC.status = 'ok';
     SYNC.dirty = false;
-    SYNC.lastSync = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    localStorage.setItem('qg_last_sync', SYNC.lastSync);
+    _markSynced();
     _maybeWeeklySnapshot(); // snapshot automático 1x por semana (fire-and-forget)
   } catch(e) {
     SYNC.status = 'error';
     console.error('Sync save failed:', e);
   }
+  _saveBusy = false;
   syncUpdateUI();
+  if (merged) _refreshAfterMerge();
+  if (_savePending) { _savePending = false; queueCloudSave(); }
 }
 
 // ── Weekly snapshots — users/{uid}/backups/{segundaISO} ──
@@ -4184,7 +4305,7 @@ async function _maybeWeeklySnapshot(){
       while(pre.length>3){ try{ await col.doc(pre.shift()).delete(); }catch(e){} }
     }
     localStorage.setItem(marker,wk);
-  }catch(e){ console.warn('snapshot:', e); }
+  }catch(e){ SYNC.backupErr=(e&&e.code)||'erro'; console.warn('snapshot:', e); }
 }
 
 async function backupsList(){
@@ -4208,7 +4329,12 @@ async function backupsList(){
         +'<button class="btn btn-sm" onclick="backupRestore(\''+r.id+'\')">↩ Restaurar</button></div>';
     }).join('');
   }catch(e){
-    el.innerHTML='<span style="color:var(--rlt)">Erro ao listar backups.</span>';
+    var code=(e&&e.code)||'';
+    el.innerHTML = code==='permission-denied'
+      ? '<span style="color:var(--rlt)">⚠ Sem permissão para os backups: as regras do Firestore ainda não liberam a subcoleção '
+        +'<code>users/{uid}/backups</code>. Enquanto isso, <b>nenhum snapshot semanal é criado</b>. '
+        +'Aplique as regras de <code>docs/FIRESTORE_RULES.md</code> no Console do Firebase.</span>'
+      : '<span style="color:var(--rlt)">Erro ao listar backups'+(code?' ('+code+')':'')+'.</span>';
     console.error('backupsList:', e);
   }
 }
@@ -4229,9 +4355,19 @@ async function backupRestore(id){
     if(!snap.exists){ alert('Backup não encontrado.'); return; }
     var restored=JSON.parse(snap.data().data||'{}');
     if(!restored||!Array.isArray(restored.sessions)){ alert('Backup inválido ou corrompido.'); return; }
+    // Restaurar SUBSTITUI: o que existe agora e não está no backup ganha lápide (senão a mesclagem
+    // com os outros aparelhos o traria de volta), e os planos restaurados passam a valer mais.
+    var _cur=STATE;
     STATE=restored;
+    if(!STATE.deleted) STATE.deleted={};
+    [['s','sessions'],['m','simulados']].forEach(function(kv){
+      var keep={}; (STATE[kv[1]]||[]).forEach(function(x){ keep[x.id]=true; });
+      (_cur[kv[1]]||[]).forEach(function(x){ if(!keep[x.id]) _tomb(kv[0],x.id); });
+    });
+    Object.keys(_cur.weekHistory||{}).forEach(function(wk){ if(!(STATE.weekHistory||{})[wk]) _tomb('w',wk); });
+    Object.keys(STATE.weekPlans||{}).forEach(function(wk){ _stampPlan(wk); });
     persistState();
-    await syncSave();
+    await syncSave({overwrite:true});
     srLoadCfg(); bancaLoadCfg();
     invalidateCache();
     migrateState();
@@ -4254,23 +4390,14 @@ async function syncLoad() {
   SYNC.status = 'syncing';
   syncUpdateUI();
   try {
-    const snap = await ref.get();
-    if (snap.exists) {
-      const remote = JSON.parse(snap.data().data || '{}');
-      if (remote && (remote.v === 4 || remote.v === 5)) {
-        STATE = syncMerge(STATE, remote);
-        persistState();
-        invalidateCache();
-        migrateState();
-        recomputeScheduler();
-        updateSidebar();
-        renderHoje();
-        SYNC.status = 'ok';
-        SYNC.lastSync = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-        localStorage.setItem('qg_last_sync', SYNC.lastSync);
-        syncUpdateUI();
-        return true;
-      }
+    const remote = await _fetchRemote(ref);
+    if (remote) {
+      _mergeRemote(remote, true);
+      _refreshAfterMerge();
+      SYNC.status = 'ok';
+      _markSynced();
+      syncUpdateUI();
+      return true;
     }
     SYNC.status = 'ok';
     syncUpdateUI();
@@ -4283,10 +4410,54 @@ async function syncLoad() {
   }
 }
 
+// Puxada em segundo plano: traz para este aparelho o que foi registrado em outro.
+// Antes a nuvem só era lida no login — quem deixava o app aberto nunca via o outro aparelho.
+// minGapMs evita reler a nuvem em rajada (foco/visibilidade disparam várias vezes).
+async function syncPull(minGapMs) {
+  if (!SYNC.ready || !AUTH.currentUser || _pulling || _saveBusy) return;
+  if (SYNC.dirty) { syncSave(); return; } // há alteração local pendente: o salvamento já puxa e mescla
+  if (Date.now() - _lastPull < (minGapMs == null ? 5000 : minGapMs)) return;
+  _pulling = true; _lastPull = Date.now();
+  try {
+    const remote = await _fetchRemote(_userDoc());
+    if (remote) {
+      const prevN = (STATE.sessions || []).length;
+      if (_mergeRemote(remote)) {
+        _refreshAfterMerge();
+        const dn = (STATE.sessions || []).length - prevN;
+        _showToast(dn > 0 ? '↻ ' + dn + ' registro(s) vindo(s) de outro aparelho' : '↻ Dados atualizados pela nuvem');
+        queueCloudSave(); // devolve à nuvem o resultado da mesclagem (converge em 1–2 rodadas)
+      }
+      SYNC.status = 'ok';
+      _markSynced();
+      syncUpdateUI();
+    }
+  } catch(e) {
+    console.warn('Sync pull failed:', e);
+  }
+  _pulling = false;
+}
+
+const TOMB_KEEP_MS = 180 * 86400000; // lápides com mais de 180 dias são descartadas
+
 function syncMerge(local, remote) {
-  // Sessions: union by id
+  local = local || {}; remote = remote || {};
+
+  // Lápides: união; vale a data mais recente de cada id. Tudo que está aqui foi EXCLUÍDO
+  // de propósito e não pode voltar só porque o outro lado ainda tem uma cópia.
+  var cut = Date.now() - TOMB_KEEP_MS, del = {};
+  ['s','m','w','x'].forEach(function(k){
+    var a = (remote.deleted||{})[k]||{}, b = (local.deleted||{})[k]||{}, o = {};
+    Object.keys(a).concat(Object.keys(b)).forEach(function(id){
+      var t = Math.max(a[id]||0, b[id]||0);
+      if(t >= cut) o[id] = t;
+    });
+    del[k] = o;
+  });
+
+  // Sessions: union by id (menos as excluídas)
   var sessMap = {};
-  (remote.sessions||[]).concat(local.sessions||[]).forEach(function(s){ sessMap[s.id]=s; });
+  (remote.sessions||[]).concat(local.sessions||[]).forEach(function(s){ if(!del.s[s.id]) sessMap[s.id]=s; });
   var sessions = Object.values(sessMap).sort(function(a,b){ return a.data.localeCompare(b.data); });
 
   // Heatmap: max per day
@@ -4295,21 +4466,59 @@ function syncMerge(local, remote) {
     heatmap[k]=Math.max((remote.heatmap||{})[k]||0,(local.heatmap||{})[k]||0);
   });
 
-  // weekExecution: per-week merge, union of completed states
+  // weekHistory: união, local vence; semanas excluídas não voltam
+  var weekHistory = Object.assign({}, remote.weekHistory||{}, local.weekHistory||{});
+  Object.keys(del.w).forEach(function(wk){ delete weekHistory[wk]; });
+
+  // weekExecution: per-week merge, union of completed states (menos marcas desfeitas
+  // depois de registradas: lápide 'x' só vale contra marcas ANTERIORES a ela)
   var weekExecution = {};
   var allWks = new Set(Object.keys(remote.weekExecution||{}).concat(Object.keys(local.weekExecution||{})));
   allWks.forEach(function(wk){
-    weekExecution[wk]=Object.assign({},(remote.weekExecution||{})[wk]||{},(local.weekExecution||{})[wk]||{});
+    var m = Object.assign({},(remote.weekExecution||{})[wk]||{},(local.weekExecution||{})[wk]||{});
+    Object.keys(m).forEach(function(uid){
+      var t = del.x[wk+'|'+uid];
+      if(t && ((m[uid]&&m[uid].completed_at)||0) <= t) delete m[uid];
+    });
+    weekExecution[wk]=m;
   });
 
-  // weekPlans: local wins (most recent freeze)
-  var weekPlans = Object.assign({},(remote.weekPlans||{}),(local.weekPlans||{}));
+  // weekPlans: vence o plano de carimbo (planAt) mais recente — replanejar numa ponta vale na outra.
+  // Mesmo carimbo → união por uid (extras incluídos num aparelho aparecem no outro).
+  // Sem carimbo nos dois lados (dados legados) → local vence, como antes.
+  var weekPlans = {}, planAt = {};
+  var lAt = local.planAt||{}, rAt = remote.planAt||{};
+  var allPl = new Set(Object.keys(remote.weekPlans||{}).concat(Object.keys(local.weekPlans||{})));
+  allPl.forEach(function(wk){
+    var lp = (local.weekPlans||{})[wk], rp = (remote.weekPlans||{})[wk];
+    var la = lAt[wk]||0, ra = rAt[wk]||0;
+    var pick;
+    if(!rp) pick = lp; else if(!lp) pick = rp;
+    else if(la > ra) pick = lp; else if(ra > la) pick = rp;
+    else if(la === 0) pick = lp;
+    else {
+      pick = lp.slice();
+      var have = {}; pick.forEach(function(t,i){ have[t.uid||String(t.idx!=null?t.idx:i)] = true; });
+      rp.forEach(function(t,i){
+        var k = t.uid||String(t.idx!=null?t.idx:i);
+        if(!have[k]){ have[k]=true; pick.push(Object.assign({},t,{idx:pick.length})); }
+      });
+    }
+    weekPlans[wk] = pick;
+    if(Math.max(la,ra)) planAt[wk] = Math.max(la,ra);
+  });
 
-  // simulados: union by id
+  // Semana já arquivada (ou excluída) no histórico não mantém plano/execução vivos
+  // (a semana ATUAL fica de fora: nunca perde o plano em andamento)
+  var _curWk = _weekStartISO();
+  Object.keys(weekHistory).concat(Object.keys(del.w)).forEach(function(wk){
+    if(wk===_curWk) return;
+    delete weekPlans[wk]; delete weekExecution[wk]; delete planAt[wk];
+  });
+
+  // simulados: union by id (menos os excluídos)
   var simMap = {};
-  (remote.simulados||[]).concat(local.simulados||[]).forEach(function(s){ simMap[s.id]=s; });
-
-  var weekHistory    = Object.assign({}, remote.weekHistory||{},    local.weekHistory||{});
+  (remote.simulados||[]).concat(local.simulados||[]).forEach(function(s){ if(!del.m[s.id]) simMap[s.id]=s; });
 
   // CONFIGURAÇÕES: vence o lado com alteração mais recente (cfgUpdatedAt).
   // Antes era sempre "local vence", então um dispositivo com cache antigo
@@ -4334,7 +4543,7 @@ function syncMerge(local, remote) {
       var en=(cfgSrc.flashcards||{}).enabled;          // interruptor segue o lado mais recente
       return {enabled:(en!=null?en:(l.enabled!=null?l.enabled:r.enabled))||0,
         days:Object.assign({},r.days||{},l.days||{})}; // registros diários: união, local vence
-    })(), v:5};
+    })(), deleted:del, planAt:planAt, v:5};
 }
 
 // ── Auth ──────────────────────────────────────────────
@@ -4544,9 +4753,13 @@ async function _adoptUser(user){
   var _relinked=_RELINK_COUNT;
   recomputeScheduler();
   checkAndCloseWeeks();
+  // Sessões da semana (inclusive as reconectadas pela migração ou vindas de outro aparelho)
+  // marcam as tarefas equivalentes / entram como extra em "Esta semana"
+  if(_reconcileWeek()){ persistState(); queueCloudSave(); }
   _lastValidation=validateScheduler();
   updateSidebar();
   renderHoje();
+  SYNC.ready=true;
   if(_relinked>0) _showToast('✓ '+_relinked+' registro(s) de estudo foram reconectados ao assunto correto');
   var mrAl=document.getElementById('mr-al');
   if(mrAl) mrAl.innerHTML=PLANILHA.map(function(t){return '<option value="'+t.n+'">';}).join('');
@@ -4567,6 +4780,7 @@ AUTH.onAuthStateChanged(async function(user){
     }
   } else {
     CURRENT_UID = null;
+    SYNC.ready = false;
     localStorage.removeItem('qg_last_uid');
     _setUserIdentity(null);
     if(ov) ov.style.display='flex';
@@ -4647,12 +4861,34 @@ async function profileSave(){
   if(btn){ btn.disabled=false; btn.textContent='💾 Salvar perfil'; }
 }
 
-// Auto-save loop
+// Auto-sync loop: com alteração pendente grava (puxando e mesclando antes); sem alteração,
+// puxa o que outro aparelho gravou — só com a aba visível, para não gastar leituras à toa.
 setInterval(() => {
-  if (SYNC.dirty && AUTH.currentUser && SYNC.status !== 'syncing') {
-    syncSave();
-  }
+  if (!AUTH.currentUser || !SYNC.ready || SYNC.status === 'syncing') return;
+  if (SYNC.dirty) syncSave();
+  else if (!document.hidden) syncPull(SYNC.AUTO_INTERVAL_MS - 5000);
 }, SYNC.AUTO_INTERVAL_MS);
+// Ao voltar para o app (trocar de aba, desbloquear o celular, reconectar) atualiza na hora
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { _checkNewDay(); syncPull(); } });
+window.addEventListener('focus', () => { _checkNewDay(); syncPull(); });
+window.addEventListener('online', () => { if (SYNC.dirty) syncSave(); else syncPull(0); });
+
+// TODAY/ISO_TODAY (e a semana atual, "Hoje", datas dos registros) são fixados quando a página
+// CARREGA. App deixado aberto de um dia para o outro (comum no celular) seguia no dia anterior:
+// o estudo da terça saía com data de domingo e caía na semana passada, fora de "Esta semana".
+// Quando o dia muda, grava o que estiver pendente e recarrega. Não interrompe quem está
+// digitando ou com pop-up aberto — tenta de novo no próximo ciclo.
+let _newDayReloading = false;
+async function _checkNewDay() {
+  if (_newDayReloading || _localISO() === _localISO(TODAY)) return; // compara dia LOCAL com dia local do carregamento (sem risco de laço por fuso)
+  const ae = document.activeElement;
+  if (document.querySelector('[id^="m-"].open') || (ae && ae.offsetParent && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) return;
+  _newDayReloading = true;
+  try { if (AUTH.currentUser && SYNC.dirty) await Promise.race([syncSave(), _sleep(4000)]); } catch(e) {}
+  _showToast('📅 Novo dia — atualizando o app…', 1500);
+  setTimeout(() => location.reload(), 700);
+}
+setInterval(_checkNewDay, 30000);
 
 // Hook into afterSave
 const _origAfterSave2 = afterSave;

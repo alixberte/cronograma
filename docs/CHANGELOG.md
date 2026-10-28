@@ -541,6 +541,32 @@ Removido:
 
 ---
 
+## v5.1
+
+Corrigido (sincronização entre aparelhos):
+
+- **Salvar não sobrescreve mais o que outro aparelho gravou.** A nuvem é um documento único e cada salvamento o substituía pelo estado DESTE aparelho: quem ficava aberto com dados velhos apagava na nuvem o que o outro tinha acabado de registrar. Agora o salvamento é *puxar → mesclar → gravar*
+- **A nuvem passa a ser lida durante o uso**, não só no login: ao voltar para o app (trocar de aba, desbloquear o celular, reconectar) e a cada 30 s com a aba visível. O que foi registrado em outro aparelho aparece sem recarregar; o app avisa por toast. Pop-up aberto ou texto sendo digitado nunca são interrompidos
+- **Exclusões não "ressuscitam"**: a mesclagem une os dois lados, então ganhou *lápides* (`STATE.deleted`) para sessões, simulados, semanas do histórico e marcas de tarefa excluídos. Restaurar backup também substitui de verdade nos outros aparelhos
+- **Replanejar a semana vale nos dois aparelhos**: o plano congelado de cada semana tem carimbo de versão (`STATE.planAt`); vence o mais recente, e extras incluídos num aparelho aparecem no outro
+- **"Último sync"** passa a refletir também as puxadas
+
+Corrigido ("estudei e não aparece em Esta semana"):
+
+- A semana é **reconciliada com as sessões registradas** ao abrir o app, ao puxar da nuvem e ao abrir a tela: tarefas equivalentes são marcadas e o que foi estudado **fora do plano** entra como tarefa extra concluída — com **qualquer data da semana** (antes só se o registro fosse feito "hoje", neste aparelho). Inclui as sessões reconectadas pela migração v5.0
+- **App aberto de um dia para o outro**: `TODAY`/semana eram fixados na carga da página, então o estudo de terça saía com data de domingo e caía na semana passada. Ao detectar a virada do dia, o app grava o que estiver pendente e recarrega (não interrompe quem está digitando)
+- **Primeiro carregamento de uma semana nova** dava `Cannot access 'SYNC' before initialization` (fechamento da semana passada rodava antes de `SYNC` existir): o script abortava antes de registrar o login e o app ficava preso até um F5. `SYNC` agora é declarado antes do primeiro uso
+
+Corrigido (backups):
+
+- "Erro ao listar backups" agora diz o motivo. Causa mais provável: as regras do Firestore não cobrem a subcoleção `users/{uid}/backups` — o app sincroniza normalmente, mas **nenhum snapshot semanal é criado**. Regras prontas e passo a passo em `docs/FIRESTORE_RULES.md` (ação manual no Console do Firebase)
+
+Atenção (infra):
+
+- Aparelhos ainda com a versão antiga aberta continuam sobrescrevendo a nuvem até recarregarem; depois de publicar, recarregue o app em todos os aparelhos
+
+---
+
 ## Próxima Versão
 
 Planejado:
