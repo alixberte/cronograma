@@ -567,6 +567,17 @@ Atenção (infra):
 
 ---
 
+## v5.2
+
+Alterado ("Esta semana → Tarefas do scheduler"):
+
+- As tarefas são **agrupadas por grande área**, da área com **mais tarefas na semana** para a com menos (empate: mais minutos planejados; depois, a que aparece antes no plano). Cada grupo tem um cabeçalho com a cor da área, a contagem e o progresso (ex.: "Cirurgia · 5 tarefas · 2/5 feitas")
+- A ordem das áreas é **recalculada a cada semana**, a partir do plano daquela semana — não há ordem fixa
+- **"Adicionar mais uma tarefa"** (e tarefas extras de assuntos avulsos) caem no grupo da **sua própria área**; o app rola até a tarefa nova, destaca por 2 s e informa a área no aviso. Como a ordem segue a contagem, adicionar várias tarefas de uma área pode subir o grupo dela
+- É só a **ordem de exibição**: o plano congelado, os `uid`/`idx`, as marcas e a sincronização não mudam
+
+---
+
 ## Próxima Versão
 
 Planejado:

@@ -110,6 +110,10 @@ input[type=checkbox]{accent-color:var(--t);cursor:pointer;width:13px;height:13px
 .tc:hover{border-color:var(--b2)}
 .tc.done-c{opacity:.45}
 .tc-main{flex:1}
+.sem-area{display:flex;align-items:center;gap:6px;margin:12px 0 6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2)}
+.sem-area:first-child{margin-top:0}
+.sem-area .sa-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sem-area .sa-n{font-weight:500;text-transform:none;letter-spacing:0;color:var(--t3)}
 .tc-title{font-size:11.5px;font-weight:500;margin-bottom:2px;line-height:1.4}
 .tc-title.crossed{text-decoration:line-through;color:var(--t3)}
 .tc-meta{font-size:10px;color:var(--t3);display:flex;align-items:center;gap:7px}
@@ -2729,11 +2733,13 @@ function semAddMore(){
   var inPlan={};
   plan.forEach(function(t){ if(t.topicId) inPlan[t.topicId]=true; });
 
+  var _lastUid=null;
   function pushTask(obj){
     var idx=plan.length;
     var uid=obj.uid||(curISO+'_'+obj.type+'_'+(obj.topicId||obj.n||idx));
     if(plan.some(function(p){return (p.uid||'')===uid;})) return false;
     plan.push(Object.assign({},obj,{uid:uid,idx:idx,min:obj.min||_minForType(obj.type)}));
+    _lastUid=uid;
     return true;
   }
   var sp=SP();
@@ -2807,7 +2813,29 @@ function semAddMore(){
   if(!cand){ _showToast('Nenhuma tarefa disponível para adicionar'); return; }
   STATE.weekPlans[curISO]=plan;
   persistState(); queueCloudSave(); renderSemana();
-  _showToast('✓ Tarefa adicionada ao plano da semana');
+  _showToast('✓ Tarefa adicionada · '+(DISC_FULL[cand.disc]||cand.disc||'plano da semana'));
+  // a tarefa nova aparece dentro do grupo da sua área: rola até ela e destaca por um instante
+  var _el=_lastUid&&document.getElementById('stc-'+curISO+'-'+_lastUid);
+  if(_el){
+    if(_el.scrollIntoView) _el.scrollIntoView({block:'nearest',behavior:'smooth'});
+    _el.style.boxShadow='0 0 0 2px var(--amb)';
+    setTimeout(function(){ _el.style.boxShadow=''; },2000);
+  }
+}
+
+// Agrupa as tarefas do plano por grande área, da área com mais tarefas para a com menos.
+function _planByArea(plan){
+  var groups={}, order=[];
+  plan.forEach(function(t,i){
+    var tp=_resolveTopic(t.n,t.disc);
+    var d=(tp&&tp.disc)||t.disc||'OUTRAS';
+    if(!groups[d]){ groups[d]={disc:d,items:[],min:0,first:i}; order.push(d); }
+    groups[d].items.push(t);
+    groups[d].min+=(t.min||0);
+  });
+  return order.map(function(d){ return groups[d]; }).sort(function(a,b){
+    return (b.items.length-a.items.length)||(b.min-a.min)||(a.first-b.first);
+  });
 }
 
 function renderSemana(){
@@ -2902,7 +2930,12 @@ function renderSemana(){
   var TL = {NEW:'NOVO',Q1_TASK:'Q1',SPACED_REV:'REVISÃO',Q2_TASK:'Q2',Q3_TASK:'Q3'};
   var TC = {NEW:'tp-novo',Q1_TASK:'tp-q2',SPACED_REV:'tp-rev',Q2_TASK:'tp-q2',Q3_TASK:'tp-q3'};
 
-  document.getElementById('sem-tasks').innerHTML = plan.map(function(t){
+  // Tarefas agrupadas por GRANDE ÁREA: a área com mais tarefas NESTA semana vem primeiro
+  // (empate: mais minutos, depois a que aparece antes no plano). É só a ordem de exibição —
+  // o plano congelado não é alterado; a ordem das áreas muda sozinha de uma semana para outra
+  // e uma tarefa adicionada cai no grupo da sua área.
+  var _areaGroups = _planByArea(plan);
+  var _taskHTML = function(t){
     var k      = t.uid || String(t.idx);
     var isDone = !!(exec[k] && exec[k].completed);
     var wk     = curWk.wkISO;
@@ -2921,6 +2954,13 @@ function renderSemana(){
       '</div>'+
       (isDone?'<span class="done-icon" style="font-size:14px;color:var(--grn);flex-shrink:0">&#10003;</span>':'')+
       '</div>';
+  };
+  document.getElementById('sem-tasks').innerHTML = _areaGroups.map(function(g){
+    var nDone = g.items.filter(function(t){ var e=exec[t.uid||String(t.idx)]; return e&&e.completed; }).length;
+    return '<div class="sem-area"><span class="sa-dot" style="background:'+(DISC_COLOR[g.disc]||'var(--t3)')+'"></span>'+
+      (DISC_FULL[g.disc]||g.disc)+
+      '<span class="sa-n">· '+g.items.length+(g.items.length===1?' tarefa':' tarefas')+' · '+nDone+'/'+g.items.length+' feitas</span></div>'+
+      g.items.map(_taskHTML).join('');
   }).join('') || '<div class="empty">Nenhuma tarefa no plano desta semana.</div>';
 
   // TODAY SESSIONS
